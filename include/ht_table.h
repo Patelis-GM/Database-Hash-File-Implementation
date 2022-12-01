@@ -5,6 +5,8 @@
 
 #define HT_OK 0
 #define HT_ERROR -1
+
+#define NONE 0
 #define HEADER_BLOCK 0
 #define HASH_FILE_IDENTIFIER 'T'
 #define MAX_BUCKETS ((BF_BLOCK_SIZE  - (4 * sizeof(int)) - sizeof(char)) / sizeof(int)) / 2
@@ -18,10 +20,14 @@ typedef struct {
     int hashToBlock[MAX_BUCKETS];
 } HT_info;
 
+bool areDifferent(HT_info* htInfo, HT_info* anotherHtInfo);
+
 typedef struct {
     int totalRecords;
-    int overflowBlock;
+    int nextBlock;
+    int previousBlock;
 } HT_block_info;
+
 
 /*Η συνάρτηση HT_CreateFile χρησιμοποιείται για τη δημιουργία
 και κατάλληλη αρχικοποίηση ενός άδειου αρχείου κατακερματισμού
@@ -66,6 +72,7 @@ int HT_InsertEntry(HT_info *header_info, /*επικεφαλίδα του αρχ�
 (όπως αυτό ορίζεται στη HT_info) ίση με value, εκτυπώνονται τα περιεχόμενά της (συμπεριλαμβανομένου και του πεδίου-κλειδιού). Να επιστρέφεται επίσης το πλήθος των blocks που διαβάστηκαν μέχρι να βρεθούν όλες οι εγγραφές. Σε περίπτωση επιτυχίας επιστρέφει το πλήθος των blocks που διαβάστηκαν, ενώ σε περίπτωση λάθους επιστρέφει -1.*/
 int HT_GetAllEntries(HT_info *header_info, /*επικεφαλίδα του αρχείου*/
                      int id /*τιμή του πεδίου-κλειδιού προς αναζήτηση*/);
+
 
 
 #endif // HT_FILE_H

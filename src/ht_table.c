@@ -74,7 +74,8 @@ int HT_CreateFile(char *fileName, int buckets) {
         else {
             HT_block_info bucketMetadata;
             bucketMetadata.totalRecords = 0;
-            bucketMetadata.overflowBlock = 0;
+            bucketMetadata.nextBlock = NONE;
+            bucketMetadata.previousBlock = NONE;
             VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
             blockData = BF_Block_GetData(block);
             memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
@@ -126,6 +127,19 @@ HT_info *HT_OpenFile(char *fileName) {
 }
 
 
+bool areDifferent(HT_info *htInfo, HT_info *anotherHtInfo) {
+
+    if (htInfo->totalBlocks != anotherHtInfo->totalBlocks || htInfo->totalRecords != anotherHtInfo->totalRecords || htInfo->totalBuckets != anotherHtInfo->totalBuckets)
+        return true;
+
+    for (int i = 0; i < MAX_BUCKETS; ++i)
+        if (htInfo->hashToBlock[i] != anotherHtInfo->hashToBlock[i])
+            return true;
+
+    return false;
+}
+
+
 int HT_CloseFile(HT_info *ht_info) {
 
     int fileDescriptor = ht_info->fileDescriptor;
@@ -140,7 +154,7 @@ int HT_CloseFile(HT_info *ht_info) {
     HT_info headerMetadata;
     memcpy(&headerMetadata, blockData + sizeof(char), sizeof(HT_info));
 
-    if (headerMetadata.totalRecords != ht_info->totalRecords || headerMetadata.totalBlocks != ht_info->totalBlocks) {
+    if (areDifferent(ht_info, &headerMetadata)) {
         memcpy(blockData + sizeof(char), ht_info, sizeof(HT_info));
         BF_Block_SetDirty(block);
     }
@@ -148,19 +162,20 @@ int HT_CloseFile(HT_info *ht_info) {
     VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
     free(ht_info);
-    BF_Block_Destroy(&block);
     VALUE_CALL_OR_DIE(BF_CloseFile(fileDescriptor))
+    BF_Block_Destroy(&block);
 
     return HT_OK;
 }
 
 int HT_InsertEntry(HT_info *ht_info, Record record) {
 
-    /* */
+
     int hashValue = record.id % ht_info->totalBuckets;
     int blockIndex = ht_info->hashToBlock[hashValue];
     int fileDescriptor = ht_info->fileDescriptor;
 
+    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", hashValue, blockIndex);
 
     BF_Block *block;
     char *blockData;
@@ -182,40 +197,26 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
     else {
 
-        while (bucketMetadata.overflowBlock != 0) {
-            blockIndex = bucketMetadata.overflowBlock;
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-            VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
-            blockData = BF_Block_GetData(block);
-            memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
-        }
+        int previousBlock = blockIndex;
+        int nextBlock = ht_info->totalBlocks;
 
-        if (bucketMetadata.totalRecords < MAX_RECORDS) {
-            memcpy(blockData + sizeof(HT_block_info) + (bucketMetadata.totalRecords * sizeof(Record)), &record, sizeof(Record));
-            bucketMetadata.totalRecords += 1;
-            memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
-            BF_Block_SetDirty(block);
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-        }
+        bucketMetadata.nextBlock = nextBlock;
+        memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+        BF_Block_SetDirty(block);
+        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
-        else {
-            blockIndex = ht_info->totalBlocks;
-            bucketMetadata.overflowBlock = blockIndex;
-            memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
-            BF_Block_SetDirty(block);
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+        bucketMetadata.totalRecords = 1;
+        bucketMetadata.nextBlock = NONE;
+        bucketMetadata.previousBlock = previousBlock;
 
-            VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
-            blockData = BF_Block_GetData(block);
-            bucketMetadata.totalRecords = 1;
-            bucketMetadata.overflowBlock = 0;
-            memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
-            memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
-            BF_Block_SetDirty(block);
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-            ht_info->totalBlocks += 1;
-        }
-
+        VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
+        blockData = BF_Block_GetData(block);
+        memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+        memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
+        BF_Block_SetDirty(block);
+        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+        ht_info->totalBlocks += 1;
+        ht_info->hashToBlock[hashValue] = nextBlock;
     }
 
 
@@ -253,8 +254,8 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
                 printRecord(record);
         }
 
-        blockIndex = bucketMetadata.overflowBlock;
-        if (blockIndex == 0)
+        blockIndex = bucketMetadata.previousBlock;
+        if (blockIndex == NONE)
             keepLooking = false;
 
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
