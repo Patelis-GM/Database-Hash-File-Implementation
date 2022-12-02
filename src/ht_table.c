@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
+
 
 #include "bf.h"
 #include "ht_table.h"
@@ -175,7 +175,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
     int blockIndex = ht_info->hashToBlock[hashValue];
     int fileDescriptor = ht_info->fileDescriptor;
 
-    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", hashValue, blockIndex);
+//    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", hashValue, blockIndex);
 
     BF_Block *block;
     char *blockData;
@@ -193,6 +193,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
         BF_Block_SetDirty(block);
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+//        printf("Block %d had space and inserted there!\n", blockIndex);
     }
 
     else {
@@ -217,6 +218,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
         ht_info->totalBlocks += 1;
         ht_info->hashToBlock[hashValue] = nextBlock;
+//        printf("Block %d DIDN'T HAVE space and inserted in block %d after extension!\n", blockIndex, nextBlock);
     }
 
 
@@ -227,12 +229,15 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
 int HT_GetAllEntries(HT_info *ht_info, int value) {
 
+//    printf("Looking for value %d\n",value);
+
     int hashValue = value % ht_info->totalBuckets;
     int blockIndex = ht_info->hashToBlock[hashValue];
     int fileDescriptor = ht_info->fileDescriptor;
     int blocksRequested = 0;
 
     bool keepLooking = true;
+    bool foundValue = false;
 
     BF_Block *block;
     char *blockData;
@@ -243,6 +248,8 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
     while (keepLooking) {
 
+//        printf("Looking in block %d\n",blockIndex);
+
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
         blockData = BF_Block_GetData(block);
         memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
@@ -250,8 +257,11 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
         for (int i = 0; i < bucketMetadata.totalRecords; ++i) {
             memcpy(&record, blockData + sizeof(HT_block_info) + (i * sizeof(Record)), sizeof(Record));
-            if (record.id == value)
+            if (record.id == value) {
                 printRecord(record);
+                foundValue = true;
+            }
+
         }
 
         blockIndex = bucketMetadata.previousBlock;
@@ -263,6 +273,10 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
 
     BF_Block_Destroy(&block);
+
+    if (!foundValue)
+        return HT_ERROR;
+
     return blocksRequested;
 }
 

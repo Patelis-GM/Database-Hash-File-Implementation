@@ -1,6 +1,6 @@
 #ifndef HT_TABLE_H
 #define HT_TABLE_H
-
+#include <stdbool.h>
 #include <record.h>
 
 #define HT_OK 0
