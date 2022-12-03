@@ -37,16 +37,16 @@ int main() {
     printf("Total blocks : %d\n", info->totalBlocks);
     printf("Total buckets : %d\n", info->totalBuckets);
     for (int i = 0; i < buckets; ++i)
-        printf("Hash value %d goes to block %d\n", i, info->bucketToBlock[i]);
+        printf("Bucket %d goes to block %d\n", i, info->bucketToBlock[i]);
 
     printf("------\n");
 
     Record record;
-    srand(12569874);
+    srand(time(NULL));
     printf("Insert Entries\n");
     for (int id = 0; id < RECORDS_NUM; ++id) {
         record = randomRecord();
-        record.id = (2 * id);
+        record.id = rand() % 20;
         printf("To insert Record  :\n");
         printRecord(record);
         HT_InsertEntry(info, record);
@@ -54,9 +54,15 @@ int main() {
     }
 
     printf("RUN PrintAllEntries\n");
-    int id = rand() % RECORDS_NUM;
+    int id = rand() % 30;
     int blocksRequested = HT_GetAllEntries(info, id);
     printf("Blocks Requested : %d\n", blocksRequested);
+
+
+
+    printf("===============================\n");
+
+    HT_PrintAllEntries(info);
 
     printf("===============================\n");
 

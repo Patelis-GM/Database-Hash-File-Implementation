@@ -181,7 +181,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
     int fileDescriptor = ht_info->fileDescriptor;
 
-    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", bucketIndex, blockIndex);
+    printf("Bucket is %d and will ATTEMPT to insert in block %d\n", bucketIndex, blockIndex);
 
     BF_Block *block;
     char *blockData;
@@ -218,7 +218,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->bucketToBlock[bucketIndex]);
     }
 
-    /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
+        /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
     else {
 
         /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Bucket Index καθώς και των μεταδεδομένων αυτού */
@@ -244,7 +244,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             printf("Block %d had space and inserted there!\n", blockIndex);
         }
 
-        /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
+            /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
         else {
 
             /* Εφόσον θα πραγματοποιηθεί allocation ενός νέου Block λόγω overflow :
@@ -363,6 +363,54 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
     return blocksRequested;
 }
 
+
+void HT_PrintAllEntries(HT_info *ht_info) {
+
+    int fileDescriptor = ht_info->fileDescriptor;
+
+    BF_Block *block;
+    char *blockData;
+    HT_block_info bucketMetadata;
+    Record record;
+    int blockIndex;
+    BF_Block_Init(&block);
+
+    for (int i = 0; i < ht_info->totalBuckets; ++i) {
+
+        bool keepLooking = true;
+        blockIndex = ht_info->bucketToBlock[i];
+
+        if (blockIndex == NONE)
+            printf("Bucket %d has no records\n", i);
+
+        else {
+
+            while (keepLooking) {
+
+                BF_GetBlock(fileDescriptor, blockIndex, block);
+                blockData = BF_Block_GetData(block);
+                memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
+
+                printf("Block %d has %d records\n", blockIndex, bucketMetadata.totalRecords);
+                for (int j = 0; j < bucketMetadata.totalRecords; ++j) {
+                    memcpy(&record, blockData + sizeof(HT_block_info) + (j * sizeof(Record)), sizeof(Record));
+                    printRecord(record);
+                }
+
+                BF_UnpinBlock(block);
+
+                blockIndex = bucketMetadata.previousBlock;
+                if (blockIndex == NONE)
+                    keepLooking = false;
+            }
+
+        }
+
+    }
+
+    BF_Block_Destroy(&block);
+
+}
 
 
 

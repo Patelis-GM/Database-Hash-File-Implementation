@@ -91,6 +91,6 @@ int HT_InsertEntry(HT_info *header_info, /*επικεφαλίδα του αρχ�
 int HT_GetAllEntries(HT_info *header_info, /*επικεφαλίδα του αρχείου*/
                      int id /*τιμή του πεδίου-κλειδιού προς αναζήτηση*/);
 
-
+void HT_PrintAllEntries(HT_info *ht_info);
 
 #endif // HT_FILE_H
