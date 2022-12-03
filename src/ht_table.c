@@ -216,21 +216,30 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->hashToBlock[hashValue]);
     }
 
+    /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Hash - Value */
     else {
 
+        /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Hash Value καθώς και των μεταδεδομένων αυτού */
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
         blockData = BF_Block_GetData(block);
         memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
 
+        /* Το εκάστοτε Block που ανακτήθηκε έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
         if (bucketMetadata.totalRecords < MAX_RECORDS) {
+
+            /* Αντιγραφή του εκάστοτε Record στην κατάλληλη θέση του Block */
             memcpy(blockData + sizeof(HT_block_info) + (bucketMetadata.totalRecords * sizeof(Record)), &record, sizeof(Record));
+
+            /* Ενημέρωση των μεταδεδομένων του Block και αντιγραφή αυτών στο τελευταίο */
             bucketMetadata.totalRecords += 1;
             memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+
             BF_Block_SetDirty(block);
             VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
             printf("Block %d had space and inserted there!\n", blockIndex);
         }
 
+        /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
         else {
 
             int previousBlock = blockIndex;
