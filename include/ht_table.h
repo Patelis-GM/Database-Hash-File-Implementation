@@ -17,12 +17,12 @@
 /* Μέγιστος αριθμός απο Buckets που μπορεί να έχει ο πίνακας κατακερματισμού
  * Η δομή HT_info περιέχει τα παρακάτω στοιχεία :
  *
- *  (1) int totalBuckets
- *  (2) int totalBlocks
- *  (3) int totalRecords
- *  (4) int fileDescriptor
+ *  # int totalBuckets
+ *  # int totalBlocks
+ *  # int totalRecords
+ *  # int fileDescriptor
  *
- *  Ενω στην αρχή του 1ου Block του Hash File βρίσκεται ο char HASH_FILE_IDENTIFIER (5).
+ *  Ενω στην αρχή του 1ου Block του Hash File βρίσκεται ο char HASH_FILE_IDENTIFIER.
  *  Συνεπώς, ο μέγιστος αριθμός απο Buckets που μπορεί να έχει ο πίνακας κατακερματισμού έτσι ώστε η συνολική δομή HT_info να χωράει στο 1ο Block του Hash File δίνεται απο τον παρακάτω τύπο.
  *  Διαίρεση με το 2 για να είμαστε απόλυτα σίγουροι οτι η συνολική δομή HT_info θα χωράει στο 1ο Block του Hash File */
 #define MAX_BUCKETS ((BF_BLOCK_SIZE  - (4 * sizeof(int)) - sizeof(char)) / sizeof(int)) / 2

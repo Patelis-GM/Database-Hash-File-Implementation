@@ -30,18 +30,18 @@
 
 int HT_CreateFile(char *fileName, int buckets) {
 
-    /* Buckets should be in the following range : (0, MAX_BUCKETS] */
+    /* O αριθμός των Buckets πρέπει να ανήκει στο εύρος : (0, ΜΑΧ_BUCKETS]  */
     if (buckets <= 0 || buckets > MAX_BUCKETS) {
         printf("Buckets should be in the following range : (0, %d]\n", MAX_BUCKETS);
         return HT_ERROR;
     }
 
-    /* Create file */
+    /* Δημιουργία Hash File */
     VALUE_CALL_OR_DIE(BF_CreateFile(fileName))
 
     int fileDescriptor;
 
-    /* Open file */
+    /* Άνοιγμα Hash File */
     VALUE_CALL_OR_DIE(BF_OpenFile(fileName, &fileDescriptor))
 
     BF_Block *block;
@@ -49,15 +49,34 @@ int HT_CreateFile(char *fileName, int buckets) {
     char *blockData;
 
     char hashFileIdentifier = HASH_FILE_IDENTIFIER;
-    HT_info headerMetadata;
 
+    /* Δημιουργία και αρχικοποίηση μιας δομής HT_info που θα αντιγραφεί στο 1ο Block του Hash File */
+    HT_info headerMetadata;
     headerMetadata.totalBuckets = buckets;
     headerMetadata.totalRecords = 0;
     headerMetadata.totalBlocks = 1;
     headerMetadata.fileDescriptor = fileDescriptor;
+
+    /* Τα Buckets του Hash File γίνονται allocate on demand.
+     * Ενημέρωσή του πίνακα κατακερματισμού ως εξής :
+     *
+     * (1) Hash Value 0 -> Block - [-1]
+     * (2) Hash Value 1 -> Block - [-1]
+     * (3) ...
+     * (4) Hash Value (buckets - 1) -> Block - [-1]
+     * (5) ...
+     * (6) Hash Value (MAX_BUCKETS - 1) -> Block - [-1]
+     *
+     * Τα (5) - (6) δεν είναι απαραίτητα αλλά πραγματοποιούνται για λογούς συνέπειας
+     */
     for (int j = 0; j < MAX_BUCKETS; ++j)
         headerMetadata.hashToBlock[j] = NONE;
 
+    /* Allocation του 1ου Block του Hash File και αντιγραφή σε αυτό των παρακάτω :
+     *
+     * - HASH_FILE_IDENTIFIER
+     * - Δομή HT_info
+     */
     VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
     blockData = BF_Block_GetData(block);
     memcpy(blockData, &hashFileIdentifier, sizeof(char));
@@ -112,7 +131,7 @@ HT_info *HT_OpenFile(char *fileName) {
 
 bool areDifferent(HT_info *htInfo, HT_info *anotherHtInfo) {
 
-    if (htInfo->totalBlocks != anotherHtInfo->totalBlocks || htInfo->totalRecords != anotherHtInfo->totalRecords || htInfo->totalBuckets != anotherHtInfo->totalBuckets)
+    if (htInfo->totalBlocks != anotherHtInfo->totalBlocks || htInfo->totalRecords != anotherHtInfo->totalRecords)
         return true;
 
     for (int i = 0; i < MAX_BUCKETS; ++i)
@@ -153,9 +172,12 @@ int HT_CloseFile(HT_info *ht_info) {
 
 int HT_InsertEntry(HT_info *ht_info, Record record) {
 
-
+    /* Υπολογισμός του Hash Value του εκάστοτε Record */
     int hashValue = record.id % ht_info->totalBuckets;
+
+    /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Hash - Value */
     int blockIndex = ht_info->hashToBlock[hashValue];
+
     int fileDescriptor = ht_info->fileDescriptor;
 
     printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", hashValue, blockIndex);
@@ -165,20 +187,32 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
     HT_block_info bucketMetadata;
     BF_Block_Init(&block);
 
-
+    /* Εφόσον το allocation των Buckets του Hash File γίνεται on demand ενδεχομένως να μην έχει γίνει Block allocation για το εκάστοτε Hash - Value */
     if (blockIndex == NONE) {
 
+        /* Μεταδεδομένα του Block που πρόκειται να γίνει allocate και θα αντιγραφούν σε αυτό */
         bucketMetadata.totalRecords = 1;
         bucketMetadata.nextBlock = NONE;
         bucketMetadata.previousBlock = NONE;
+
+        /* Allocation του Block και αντιγραφή σε αυτό των παρακάτω :
+         *
+         * - Δομή HT_block_info
+         * - Record
+         */
         VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
         blockData = BF_Block_GetData(block);
         memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
         memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
         BF_Block_SetDirty(block);
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+        /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info για το Block που αντιστοιχεί πλέον στο εκάστοτε Hash - Value */
         ht_info->hashToBlock[hashValue] = ht_info->totalBlocks;
+
+        /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν το Hash File */
         ht_info->totalBlocks += 1;
+
         printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->hashToBlock[hashValue]);
     }
 
