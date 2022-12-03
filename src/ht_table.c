@@ -48,41 +48,23 @@ int HT_CreateFile(char *fileName, int buckets) {
     BF_Block_Init(&block);
     char *blockData;
 
-    for (int i = 0; i < buckets + 1; ++i) {
+    char hashFileIdentifier = HASH_FILE_IDENTIFIER;
+    HT_info headerMetadata;
 
-        if (i == 0) {
-            char hashFileIdentifier = HASH_FILE_IDENTIFIER;
-            HT_info headerMetadata;
-            headerMetadata.totalBuckets = buckets;
-            headerMetadata.totalRecords = 0;
-            headerMetadata.totalBlocks = buckets + 1;
-            headerMetadata.fileDescriptor = fileDescriptor;
-            for (int j = 0; j < MAX_BUCKETS; ++j) {
-                if (j < buckets)
-                    headerMetadata.hashToBlock[j] = j + 1;
-                else
-                    headerMetadata.hashToBlock[j] = -1;
-            }
-            VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
-            blockData = BF_Block_GetData(block);
-            memcpy(blockData, &hashFileIdentifier, sizeof(char));
-            memcpy(blockData + sizeof(char), &headerMetadata, sizeof(HT_info));
-            BF_Block_SetDirty(block);
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-        }
+    headerMetadata.totalBuckets = buckets;
+    headerMetadata.totalRecords = 0;
+    headerMetadata.totalBlocks = 1;
+    headerMetadata.fileDescriptor = fileDescriptor;
+    for (int j = 0; j < MAX_BUCKETS; ++j)
+        headerMetadata.hashToBlock[j] = NONE;
 
-        else {
-            HT_block_info bucketMetadata;
-            bucketMetadata.totalRecords = 0;
-            bucketMetadata.nextBlock = NONE;
-            bucketMetadata.previousBlock = NONE;
-            VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
-            blockData = BF_Block_GetData(block);
-            memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
-            BF_Block_SetDirty(block);
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-        }
-    }
+    VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
+    blockData = BF_Block_GetData(block);
+    memcpy(blockData, &hashFileIdentifier, sizeof(char));
+    memcpy(blockData + sizeof(char), &headerMetadata, sizeof(HT_info));
+    BF_Block_SetDirty(block);
+    VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
 
     BF_Block_Destroy(&block);
     VALUE_CALL_OR_DIE(BF_CloseFile(fileDescriptor))
@@ -121,6 +103,7 @@ HT_info *HT_OpenFile(char *fileName) {
     HT_info *headerMetadata = (HT_info *) malloc(sizeof(HT_info));
     memcpy(headerMetadata, blockData + sizeof(char), sizeof(HT_info));
 
+    POINTER_CALL_OR_DIE(BF_UnpinBlock(block))
 
     BF_Block_Destroy(&block);
     return headerMetadata;
@@ -175,50 +158,71 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
     int blockIndex = ht_info->hashToBlock[hashValue];
     int fileDescriptor = ht_info->fileDescriptor;
 
-//    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", hashValue, blockIndex);
+    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", hashValue, blockIndex);
 
     BF_Block *block;
     char *blockData;
     HT_block_info bucketMetadata;
-
     BF_Block_Init(&block);
 
-    VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
-    blockData = BF_Block_GetData(block);
-    memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
 
-    if (bucketMetadata.totalRecords < MAX_RECORDS) {
-        memcpy(blockData + sizeof(HT_block_info) + (bucketMetadata.totalRecords * sizeof(Record)), &record, sizeof(Record));
-        bucketMetadata.totalRecords += 1;
-        memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
-        BF_Block_SetDirty(block);
-        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-//        printf("Block %d had space and inserted there!\n", blockIndex);
-    }
-
-    else {
-
-        int previousBlock = blockIndex;
-        int nextBlock = ht_info->totalBlocks;
-
-        bucketMetadata.nextBlock = nextBlock;
-        memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
-        BF_Block_SetDirty(block);
-        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+    if (blockIndex == NONE) {
 
         bucketMetadata.totalRecords = 1;
         bucketMetadata.nextBlock = NONE;
-        bucketMetadata.previousBlock = previousBlock;
-
+        bucketMetadata.previousBlock = NONE;
         VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
         blockData = BF_Block_GetData(block);
         memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
         memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
         BF_Block_SetDirty(block);
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+        ht_info->hashToBlock[hashValue] = ht_info->totalBlocks;
         ht_info->totalBlocks += 1;
-        ht_info->hashToBlock[hashValue] = nextBlock;
-//        printf("Block %d DIDN'T HAVE space and inserted in block %d after extension!\n", blockIndex, nextBlock);
+        printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->hashToBlock[hashValue]);
+    }
+
+    else {
+
+        VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+        blockData = BF_Block_GetData(block);
+        memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
+
+        if (bucketMetadata.totalRecords < MAX_RECORDS) {
+            memcpy(blockData + sizeof(HT_block_info) + (bucketMetadata.totalRecords * sizeof(Record)), &record, sizeof(Record));
+            bucketMetadata.totalRecords += 1;
+            memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+            BF_Block_SetDirty(block);
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+            printf("Block %d had space and inserted there!\n", blockIndex);
+        }
+
+        else {
+
+            int previousBlock = blockIndex;
+            int nextBlock = ht_info->totalBlocks;
+
+            bucketMetadata.nextBlock = nextBlock;
+            memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+            BF_Block_SetDirty(block);
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+            bucketMetadata.totalRecords = 1;
+            bucketMetadata.nextBlock = NONE;
+            bucketMetadata.previousBlock = previousBlock;
+
+            VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
+            blockData = BF_Block_GetData(block);
+            memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+            memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
+            BF_Block_SetDirty(block);
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+            ht_info->totalBlocks += 1;
+            ht_info->hashToBlock[hashValue] = nextBlock;
+            printf("Block %d DIDN'T HAVE space and inserted in block %d after extension!\n", blockIndex, nextBlock);
+        }
+
+
     }
 
 
@@ -229,7 +233,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
 int HT_GetAllEntries(HT_info *ht_info, int value) {
 
-//    printf("Looking for value %d\n",value);
+    printf("Looking for value %d\n", value);
 
     int hashValue = value % ht_info->totalBuckets;
     int blockIndex = ht_info->hashToBlock[hashValue];
@@ -243,12 +247,14 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
     char *blockData;
     HT_block_info bucketMetadata;
     Record record;
-
     BF_Block_Init(&block);
+
+    if (blockIndex == NONE)
+        keepLooking = false;
 
     while (keepLooking) {
 
-//        printf("Looking in block %d\n",blockIndex);
+        printf("Looking in block %d\n", blockIndex);
 
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
         blockData = BF_Block_GetData(block);
@@ -264,18 +270,19 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
         }
 
+        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
         blockIndex = bucketMetadata.previousBlock;
         if (blockIndex == NONE)
             keepLooking = false;
 
-        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
     }
 
 
     BF_Block_Destroy(&block);
 
     if (!foundValue)
-        return HT_ERROR;
+        printf("Could not find value %d\n", value);
 
     return blocksRequested;
 }
