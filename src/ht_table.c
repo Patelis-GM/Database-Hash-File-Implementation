@@ -72,15 +72,16 @@ int HT_CreateFile(char *fileName, int buckets) {
     for (int j = 0; j < MAX_BUCKETS; ++j)
         headerMetadata.hashToBlock[j] = NONE;
 
-    /* Allocation του 1ου Block του Hash File και αντιγραφή σε αυτό των παρακάτω :
-     *
-     * - HASH_FILE_IDENTIFIER
-     * - Δομή HT_info
-     */
+    /* Allocation του 1ου Block */
     VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
     blockData = BF_Block_GetData(block);
+
+    /* Αντιγραφή του HASH_FILE_IDENTIFIER στο 1ο byte του 1ου Block */
     memcpy(blockData, &hashFileIdentifier, sizeof(char));
+
+    /* Αντιγραφή των μεταδεδομένων στο 1ο Block */
     memcpy(blockData + sizeof(char), &headerMetadata, sizeof(HT_info));
+
     BF_Block_SetDirty(block);
     VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
@@ -195,22 +196,23 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         bucketMetadata.nextBlock = NONE;
         bucketMetadata.previousBlock = NONE;
 
-        /* Allocation του Block και αντιγραφή σε αυτό των παρακάτω :
-         *
-         * - Δομή HT_block_info
-         * - Record
-         */
+        /* Allocation του Block */
         VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
         blockData = BF_Block_GetData(block);
+
+        /* Αντιγραφή των μεταδεδομένων στο allocated Block */
         memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+
+        /* Αντιγραφή του εκάστοτε Record στην κατάλληλη θέση του allocated Block */
         memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
+
         BF_Block_SetDirty(block);
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
         /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info για το Block που αντιστοιχεί πλέον στο εκάστοτε Hash - Value */
         ht_info->hashToBlock[hashValue] = ht_info->totalBlocks;
 
-        /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν το Hash File */
+        /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
         ht_info->totalBlocks += 1;
 
         printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->hashToBlock[hashValue]);
@@ -222,6 +224,8 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Hash Value καθώς και των μεταδεδομένων αυτού */
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
         blockData = BF_Block_GetData(block);
+
+        /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */
         memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
 
         /* Το εκάστοτε Block που ανακτήθηκε έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
@@ -236,40 +240,60 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
             BF_Block_SetDirty(block);
             VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
             printf("Block %d had space and inserted there!\n", blockIndex);
         }
 
         /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
         else {
 
+            /* Εφόσον θα πραγματοποιηθεί allocation ενός νέου Block λόγω overflow :
+             *
+             * # Το επόμενο Block του τωρινού Block θα είναι ο αριθμός των Blocks του Hash File ΠΡΙΝ το allocation αφού αν το Hash File απαρτίζεται απο έστω 5 Blocks στη συνέχεια θα απαρτίζεται απο 6 Blocks και το index του allocated Block θα είναι το 5
+             * # Το προηγούμενο Block του allocated Block θα είναι το index του Block στο οποίο έγινε απόπειρα για την εισαγωγή του εκάστοτε Record
+             */
             int previousBlock = blockIndex;
             int nextBlock = ht_info->totalBlocks;
 
+            /* Ενημέρωση των μεταδεδομένων του τωρινού Block και αντιγραφή αυτών στο τελευταίο */
             bucketMetadata.nextBlock = nextBlock;
             memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
             BF_Block_SetDirty(block);
             VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
+            /* Αρχικοποίηση των μεταδεδομένων του Block που θα γίνει allocate */
             bucketMetadata.totalRecords = 1;
             bucketMetadata.nextBlock = NONE;
             bucketMetadata.previousBlock = previousBlock;
 
+            /* Allocation του Block */
             VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
             blockData = BF_Block_GetData(block);
+
+            /* Αντιγραφή των μεταδεδομένων στο allocated Block */
             memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
+
+            /* Αντιγραφή του εκάστοτε Record στην κατάλληλη θέση του allocated Block */
             memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
+
             BF_Block_SetDirty(block);
             VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+            /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
             ht_info->totalBlocks += 1;
+
+            /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info οτι το allocated Block αντιστοιχεί πλέον στο εκάστοτε Hash - Value */
             ht_info->hashToBlock[hashValue] = nextBlock;
+
             printf("Block %d DIDN'T HAVE space and inserted in block %d after extension!\n", blockIndex, nextBlock);
         }
 
 
     }
 
-
+    /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Records του Hash File */
     ht_info->totalRecords += 1;
+
     BF_Block_Destroy(&block);
     return blockIndex;
 }
@@ -278,8 +302,12 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
     printf("Looking for value %d\n", value);
 
+    /* Υπολογισμός του Hash Value του εκάστοτε Record */
     int hashValue = value % ht_info->totalBuckets;
+
+    /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Hash - Value */
     int blockIndex = ht_info->hashToBlock[hashValue];
+
     int fileDescriptor = ht_info->fileDescriptor;
     int blocksRequested = 0;
 
@@ -292,6 +320,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
     Record record;
     BF_Block_Init(&block);
 
+    /* Εφόσον το allocation των Buckets του Hash File γίνεται on demand γνωρίζουμε εκ των προτέρων οτι το εκάστοτε Record δε βρίσκεται στο Hash - File */
     if (blockIndex == NONE)
         keepLooking = false;
 
@@ -299,8 +328,11 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
         printf("Looking in block %d\n", blockIndex);
 
+        /* Ανάκτηση του κατάλληλου Block */
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
         blockData = BF_Block_GetData(block);
+
+        /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */
         memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
         blocksRequested += 1;
 
@@ -315,6 +347,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
+        /* Ανάκτηση του Index του προηγούμενου Block */
         blockIndex = bucketMetadata.previousBlock;
         if (blockIndex == NONE)
             keepLooking = false;
