@@ -35,7 +35,7 @@ typedef struct {
     int totalBlocks;
     int totalRecords;
     int fileDescriptor;
-    int hashToBlock[MAX_BUCKETS];
+    int bucketToBlock[MAX_BUCKETS];
 } HT_info;
 
 bool areDifferent(HT_info* htInfo, HT_info* anotherHtInfo);

@@ -37,7 +37,7 @@ int main() {
     printf("Total blocks : %d\n", info->totalBlocks);
     printf("Total buckets : %d\n", info->totalBuckets);
     for (int i = 0; i < buckets; ++i)
-        printf("Hash value %d goes to block %d\n", i, info->hashToBlock[i]);
+        printf("Hash value %d goes to block %d\n", i, info->bucketToBlock[i]);
 
     printf("------\n");
 

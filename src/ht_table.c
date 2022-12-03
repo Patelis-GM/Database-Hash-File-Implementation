@@ -60,17 +60,17 @@ int HT_CreateFile(char *fileName, int buckets) {
     /* Τα Buckets του Hash File γίνονται allocate on demand.
      * Ενημέρωσή του πίνακα κατακερματισμού ως εξής :
      *
-     * (1) Hash Value 0 -> Block - [-1]
-     * (2) Hash Value 1 -> Block - [-1]
+     * (1) Bucket 0 -> Block - [-1]
+     * (2) Bucket 1 -> Block - [-1]
      * (3) ...
-     * (4) Hash Value (buckets - 1) -> Block - [-1]
+     * (4) Bucket (buckets - 1) -> Block - [-1]
      * (5) ...
-     * (6) Hash Value (MAX_BUCKETS - 1) -> Block - [-1]
+     * (6) Bucket (MAX_BUCKETS - 1) -> Block - [-1]
      *
      * Τα (5) - (6) δεν είναι απαραίτητα αλλά πραγματοποιούνται για λογούς συνέπειας
      */
     for (int j = 0; j < MAX_BUCKETS; ++j)
-        headerMetadata.hashToBlock[j] = NONE;
+        headerMetadata.bucketToBlock[j] = NONE;
 
     /* Allocation του 1ου Block */
     VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
@@ -136,7 +136,7 @@ bool areDifferent(HT_info *htInfo, HT_info *anotherHtInfo) {
         return true;
 
     for (int i = 0; i < MAX_BUCKETS; ++i)
-        if (htInfo->hashToBlock[i] != anotherHtInfo->hashToBlock[i])
+        if (htInfo->bucketToBlock[i] != anotherHtInfo->bucketToBlock[i])
             return true;
 
     return false;
@@ -173,22 +173,22 @@ int HT_CloseFile(HT_info *ht_info) {
 
 int HT_InsertEntry(HT_info *ht_info, Record record) {
 
-    /* Υπολογισμός του Hash Value του εκάστοτε Record */
-    int hashValue = record.id % ht_info->totalBuckets;
+    /* Υπολογισμός του Bucket Index του εκάστοτε Record */
+    int bucketIndex = record.id % ht_info->totalBuckets;
 
-    /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Hash - Value */
-    int blockIndex = ht_info->hashToBlock[hashValue];
+    /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Bucket Index */
+    int blockIndex = ht_info->bucketToBlock[bucketIndex];
 
     int fileDescriptor = ht_info->fileDescriptor;
 
-    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", hashValue, blockIndex);
+    printf("Hash Value is %d and will ATTEMPT to insert in block %d\n", bucketIndex, blockIndex);
 
     BF_Block *block;
     char *blockData;
     HT_block_info bucketMetadata;
     BF_Block_Init(&block);
 
-    /* Εφόσον το allocation των Buckets του Hash File γίνεται on demand ενδεχομένως να μην έχει γίνει Block allocation για το εκάστοτε Hash - Value */
+    /* Εφόσον το allocation των Buckets του Hash File γίνεται on demand ενδεχομένως να μην έχει γίνει Block allocation για το εκάστοτε Bucket Index */
     if (blockIndex == NONE) {
 
         /* Μεταδεδομένα του Block που πρόκειται να γίνει allocate και θα αντιγραφούν σε αυτό */
@@ -209,19 +209,19 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         BF_Block_SetDirty(block);
         VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
-        /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info για το Block που αντιστοιχεί πλέον στο εκάστοτε Hash - Value */
-        ht_info->hashToBlock[hashValue] = ht_info->totalBlocks;
+        /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info για το Block που αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
+        ht_info->bucketToBlock[bucketIndex] = ht_info->totalBlocks;
 
         /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
         ht_info->totalBlocks += 1;
 
-        printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->hashToBlock[hashValue]);
+        printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->bucketToBlock[bucketIndex]);
     }
 
-    /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Hash - Value */
+    /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
     else {
 
-        /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Hash Value καθώς και των μεταδεδομένων αυτού */
+        /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Bucket Index καθώς και των μεταδεδομένων αυτού */
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
         blockData = BF_Block_GetData(block);
 
@@ -282,8 +282,8 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
             ht_info->totalBlocks += 1;
 
-            /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info οτι το allocated Block αντιστοιχεί πλέον στο εκάστοτε Hash - Value */
-            ht_info->hashToBlock[hashValue] = nextBlock;
+            /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info οτι το allocated Block αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
+            ht_info->bucketToBlock[bucketIndex] = nextBlock;
 
             printf("Block %d DIDN'T HAVE space and inserted in block %d after extension!\n", blockIndex, nextBlock);
         }
@@ -302,11 +302,11 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
     printf("Looking for value %d\n", value);
 
-    /* Υπολογισμός του Hash Value του εκάστοτε Record */
-    int hashValue = value % ht_info->totalBuckets;
+    /* Υπολογισμός του Bucket Index του εκάστοτε Record */
+    int bucketIndex = value % ht_info->totalBuckets;
 
-    /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Hash - Value */
-    int blockIndex = ht_info->hashToBlock[hashValue];
+    /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Bucket Index */
+    int blockIndex = ht_info->bucketToBlock[bucketIndex];
 
     int fileDescriptor = ht_info->fileDescriptor;
     int blocksRequested = 0;
