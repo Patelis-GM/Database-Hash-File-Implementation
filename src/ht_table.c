@@ -181,8 +181,6 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
     int fileDescriptor = ht_info->fileDescriptor;
 
-    printf("Bucket is %d and will ATTEMPT to insert in block %d\n", bucketIndex, blockIndex);
-
     BF_Block *block;
     char *blockData;
     HT_block_info bucketMetadata;
@@ -215,7 +213,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
         ht_info->totalBlocks += 1;
 
-        printf("Block didn't EXIST had to create it and inserted there which now is block %d!\n", ht_info->bucketToBlock[bucketIndex]);
+        blockIndex = ht_info->bucketToBlock[bucketIndex];
     }
 
         /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
@@ -241,7 +239,6 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             BF_Block_SetDirty(block);
             VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
-            printf("Block %d had space and inserted there!\n", blockIndex);
         }
 
             /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
@@ -285,7 +282,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info οτι το allocated Block αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
             ht_info->bucketToBlock[bucketIndex] = nextBlock;
 
-            printf("Block %d DIDN'T HAVE space and inserted in block %d after extension!\n", blockIndex, nextBlock);
+            blockIndex = nextBlock;
         }
 
 

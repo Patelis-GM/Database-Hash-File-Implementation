@@ -23,7 +23,7 @@ int main() {
 
     printf("Max Records per block: %d\n", MAX_RECORDS);
 
-    int buckets = 3;
+    int buckets = 4;
     HT_CreateFile(FILE_NAME, buckets);
 
     HT_info *info = HT_OpenFile(FILE_NAME);
@@ -47,9 +47,11 @@ int main() {
     for (int id = 0; id < RECORDS_NUM; ++id) {
         record = randomRecord();
         record.id = rand() % 20;
-        printf("To insert Record  :\n");
+        int bucketIndex = record.id % info->totalBuckets;
+        printf("To insert Record in bucket %d  :\n",bucketIndex);
         printRecord(record);
-        HT_InsertEntry(info, record);
+        int blockIndex = HT_InsertEntry(info, record);
+        printf("Inserted it in block %d\n",blockIndex);
         printf("------\n");
     }
 
