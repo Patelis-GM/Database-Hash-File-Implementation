@@ -222,9 +222,9 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
     else {
 
         /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Bucket Index καθώς και των μεταδεδομένων αυτού */
-        printf("Block Index : %d\n",blockIndex);
+//        printf("Block Index : %d\n",blockIndex);
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
-        printf("OK\n");
+//        printf("OK\n");
         blockData = BF_Block_GetData(block);
 
         /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */
@@ -327,7 +327,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
     while (keepLooking) {
 
-        printf("Looking in block %d\n", blockIndex);
+//        printf("Looking in block %d\n", blockIndex);
 
         /* Ανάκτηση του κατάλληλου Block */
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
@@ -340,7 +340,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
         for (int i = 0; i < bucketMetadata.totalRecords; ++i) {
             memcpy(&record, blockData + sizeof(HT_block_info) + (i * sizeof(Record)), sizeof(Record));
             if (record.id == value) {
-                printRecord(record);
+//                printRecord(record);
                 foundValue = true;
             }
 
@@ -392,10 +392,10 @@ void HT_PrintAllEntries(HT_info *ht_info) {
                 blockData = BF_Block_GetData(block);
                 memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
 
-                printf("Block %d has %d records\n", blockIndex, bucketMetadata.totalRecords);
+//                printf("Block %d has %d records\n", blockIndex, bucketMetadata.totalRecords);
                 for (int j = 0; j < bucketMetadata.totalRecords; ++j) {
                     memcpy(&record, blockData + sizeof(HT_block_info) + (j * sizeof(Record)), sizeof(Record));
-                    printRecord(record);
+//                    printRecord(record);
                 }
 
                 BF_UnpinBlock(block);

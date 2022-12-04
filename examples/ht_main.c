@@ -5,7 +5,7 @@
 #include "bf.h"
 #include "ht_table.h"
 
-#define RECORDS_NUM 6500000
+#define RECORDS_NUM 500000
 #define FILE_NAME "data.db"
 
 #define VALUE_CALL_OR_DIE(call)     \
@@ -61,13 +61,14 @@ int main() {
 //
 //    printf("===============================\n");
 
-
+    int blocksRequested = HT_GetAllEntries(info, 2);
+    printf("Blocks Requested : %d\n", blocksRequested);
     printf("After insertions file is : \n");
-    printf("Total records : %ld\n", info->totalRecords);
-    printf("Total blocks : %ld\n", info->totalBlocks);
-    printf("Total buckets : %ld\n", info->totalBuckets);
+    printf("Total records : %d\n", info->totalRecords);
+    printf("Total blocks : %d\n", info->totalBlocks);
+    printf("Total buckets : %d\n", info->totalBuckets);
     for (int i = 0; i < buckets; ++i)
-        printf("Bucket %ld goes to block %d\n", i, info->bucketToBlock[i]);
+        printf("Bucket %d goes to block %d\n", i, info->bucketToBlock[i]);
 
     printf("------\n");
 
