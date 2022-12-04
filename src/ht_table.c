@@ -12,7 +12,8 @@
   {                           \
     BF_ErrorCode code = call; \
     if (code != BF_OK) {      \
-      BF_PrintError(code);    \
+      BF_PrintError(code);          \
+      printf("Code is : %d\n", code);\
       return HT_ERROR;        \
     }                         \
   }
@@ -32,7 +33,7 @@ int HT_CreateFile(char *fileName, int buckets) {
 
     /* O αριθμός των Buckets πρέπει να ανήκει στο εύρος : (0, ΜΑΧ_BUCKETS]  */
     if (buckets <= 0 || buckets > MAX_BUCKETS) {
-        printf("Buckets should be in the following range : (0, %d]\n", MAX_BUCKETS);
+        printf("Buckets should be in the following range : (0, %ld]\n", MAX_BUCKETS);
         return HT_ERROR;
     }
 
@@ -166,6 +167,7 @@ int HT_CloseFile(HT_info *ht_info) {
 
     free(ht_info);
     VALUE_CALL_OR_DIE(BF_CloseFile(fileDescriptor))
+
     BF_Block_Destroy(&block);
 
     return HT_OK;
@@ -220,7 +222,9 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
     else {
 
         /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Bucket Index καθώς και των μεταδεδομένων αυτού */
+        printf("Block Index : %d\n",blockIndex);
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+        printf("OK\n");
         blockData = BF_Block_GetData(block);
 
         /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */

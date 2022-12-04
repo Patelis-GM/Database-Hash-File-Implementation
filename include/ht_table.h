@@ -1,5 +1,6 @@
 #ifndef HT_TABLE_H
 #define HT_TABLE_H
+
 #include <stdbool.h>
 #include <record.h>
 
@@ -31,17 +32,17 @@
 #define MAX_RECORDS (BF_BLOCK_SIZE - sizeof(HT_block_info)) / sizeof(Record)
 
 typedef struct {
-    int totalBuckets;
-    int totalBlocks;
-    int totalRecords;
+     int totalBuckets;
+     int totalBlocks;
+     int totalRecords;
     int fileDescriptor;
     int bucketToBlock[MAX_BUCKETS];
 } HT_info;
 
-bool areDifferent(HT_info* htInfo, HT_info* anotherHtInfo);
+bool areDifferent(HT_info *htInfo, HT_info *anotherHtInfo);
 
 typedef struct {
-    int totalRecords;
+     int totalRecords;
     int nextBlock;
     int previousBlock;
 } HT_block_info;
