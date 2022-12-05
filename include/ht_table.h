@@ -32,9 +32,9 @@
 #define MAX_RECORDS ((BF_BLOCK_SIZE - sizeof(HT_block_info)) / sizeof(Record))
 
 typedef struct {
-     int totalBuckets;
-     int totalBlocks;
-     int totalRecords;
+    int totalBuckets;
+    int totalBlocks;
+    int totalRecords;
     int fileDescriptor;
     int bucketToBlock[MAX_BUCKETS];
 } HT_info;
@@ -42,8 +42,7 @@ typedef struct {
 bool areDifferent(HT_info *htInfo, HT_info *anotherHtInfo);
 
 typedef struct {
-     int totalRecords;
-    int nextBlock;
+    int totalRecords;
     int previousBlock;
 } HT_block_info;
 
