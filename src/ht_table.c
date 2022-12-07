@@ -319,8 +319,6 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
 int HT_GetAllEntries(HT_info *ht_info, int value) {
 
-    printf("Looking for value %d\n", value);
-
     /* Υπολογισμός του Bucket Index του εκάστοτε Record */
     int bucketIndex = value % ht_info->totalBuckets;
 
@@ -344,8 +342,6 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
         keepLooking = false;
 
     while (keepLooking) {
-
-        printf("Looking in block %d\n", blockIndex);
 
         /* Ανάκτηση του κατάλληλου Block */
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
@@ -381,56 +377,6 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
     return blocksRequested;
 }
-
-
-void HT_PrintAllEntries(HT_info *ht_info) {
-
-    int fileDescriptor = ht_info->fileDescriptor;
-
-    BF_Block *block;
-    char *blockData;
-    HT_block_info bucketMetadata;
-    Record record;
-    int blockIndex;
-    BF_Block_Init(&block);
-
-    for (int i = 0; i < ht_info->totalBuckets; ++i) {
-
-        bool keepLooking = true;
-        blockIndex = ht_info->bucketToBlock[i];
-
-        if (blockIndex == NONE)
-            printf("Bucket %d has no records\n", i);
-
-        else {
-
-            while (keepLooking) {
-
-                BF_GetBlock(fileDescriptor, blockIndex, block);
-                blockData = BF_Block_GetData(block);
-                memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
-
-                printf("Block %d has %d records\n", blockIndex, bucketMetadata.totalRecords);
-                for (int j = 0; j < bucketMetadata.totalRecords; ++j) {
-                    memcpy(&record, blockData + sizeof(HT_block_info) + (j * sizeof(Record)), sizeof(Record));
-                    printRecord(record);
-                }
-
-                BF_UnpinBlock(block);
-
-                blockIndex = bucketMetadata.previousBlock;
-                if (blockIndex == NONE)
-                    keepLooking = false;
-            }
-
-        }
-
-    }
-
-    BF_Block_Destroy(&block);
-
-}
-
 
 int HashStatistics(char *filename) {
 
@@ -498,7 +444,7 @@ int HashStatistics(char *filename) {
     int averageNumberOfBlocks = 0;
     for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex)
         averageNumberOfBlocks += bucketBlocks[bucketIndex];
-    printf("%f is the average number of blocks per bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalBuckets));
+    printf("%.2f is the average number of blocks per bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalBuckets));
 
 
     int mostRecords = INT_MIN;
@@ -510,7 +456,7 @@ int HashStatistics(char *filename) {
     for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex) {
 
         int totalRecords = bucketRecords[bucketIndex];
-        printf("Bucket %d has %d records\n", bucketIndex, totalRecords);
+        printf("Bucket %d has %d record(s)\n", bucketIndex, totalRecords);
 
         if (totalRecords > mostRecords) {
             mostRecords = totalRecords;
@@ -524,18 +470,18 @@ int HashStatistics(char *filename) {
 
         averageNumberOfRecords += totalRecords;
     }
-    printf("%f is the average number of records per bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalBuckets));
-    printf("Bucket %d has the least number of %d records\n", leastRecordsIndex, leastRecords);
-    printf("Bucket %d has the maximum number of %d records\n", mostRecordsIndex, mostRecords);
+    printf("%.2f is the average number of records per bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalBuckets));
+    printf("Bucket %d has the least number of %d record(s)\n", leastRecordsIndex, leastRecords);
+    printf("Bucket %d has the maximum number of %d record(s)\n", mostRecordsIndex, mostRecords);
 
 
     int totalBucketsWithOverflow = 0;
     for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex)
         if (bucketBlocks[bucketIndex] > 1) {
             totalBucketsWithOverflow += 1;
-            printf("Bucket %d has %d overflow blocks\n", bucketIndex, bucketBlocks[bucketIndex] - 1);
+            printf("Bucket %d has %d overflow block(s)\n", bucketIndex, bucketBlocks[bucketIndex] - 1);
         }
-    printf("Overflow occurs in %d buckets\n", totalBucketsWithOverflow);
+    printf("Overflow occurs in %d bucket(s)\n", totalBucketsWithOverflow);
 
 
     BF_Block_Destroy(&block);

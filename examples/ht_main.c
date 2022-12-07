@@ -5,7 +5,7 @@
 #include "bf.h"
 #include "ht_table.h"
 
-#define RECORDS_NUM 30000000
+#define RECORDS_NUM 4269
 #define FILE_NAME "data.db"
 
 #define CALL_OR_DIE(call)     \
@@ -19,12 +19,14 @@
 
 int main() {
 
-    BF_Init(LRU);
+    BF_Init(MRU);
 
-//    printf("Max Records per block: %lu\n", MAX_RECORDS);
+    int buckets = 10;
 
-    int buckets = 1;
+    /* Κατά τη 2η + εκτέλεση του προγράμματος θα προκύψει το σφάλμα : BF Error: The file is already being used
+     * Το παραπάνω οφείλεται στο οτι το αρχείο υπάρχει ηδη και έτσι θα αποτύχει η δημιουργία του, συνεπώς κατά τη 2η + εκτέλεση αγνοήστε το */
     HT_CreateFile(FILE_NAME, buckets);
+
 
     HT_info *info = HT_OpenFile(FILE_NAME);
     if (info == NULL) {
@@ -32,50 +34,20 @@ int main() {
         return 1;
     }
 
-
     Record record;
     srand(time(NULL));
 
-
     for (int id = 0; id < RECORDS_NUM; ++id) {
         record = randomRecord();
-        record.id = rand() % 50;
-        int bucketIndex = record.id % info->totalBuckets;
-        printf("To insert Record in Bucket %d  :\n", bucketIndex);
-        printRecord(record);
         int blockIndex = HT_InsertEntry(info, record);
-        if(blockIndex == -1)
-            break;
-        printf("Inserted it in Block %d\n", blockIndex);
-        printf("------\n");
+        if (blockIndex == HT_ERROR)
+            return 1;
     }
 
-//    printf("RUN PrintAllEntries\n");
-//    int id = rand() % 30;
-//    int blocksRequested = HT_GetAllEntries(info, id);
-//    printf("Blocks Requested : %d\n", blocksRequested);
-//
-//
-//
-
-
-    int blocksRequested = HT_GetAllEntries(info, 2);
-    printf("Blocks Requested : %d\n", blocksRequested);
-    printf("After insertions file is : \n");
-    printf("Total records : %d\n", info->totalRecords);
-    printf("Total blocks : %d\n", info->totalBlocks);
-    printf("Total buckets : %d\n", info->totalBuckets);
-    for (int i = 0; i < buckets; ++i)
-        printf("Bucket %d goes to block %d\n", i, info->bucketToBlock[i]);
-
-    printf("------\n");
-
-    printf("===============================\n");
-
-    HT_PrintAllEntries(info);
-
-    printf("===============================\n");
-
+    int value = rand() % RECORDS_NUM;
+    printf("Looking for value %d\n",value);
+    int blocksRequested = HT_GetAllEntries(info, value);
+    printf("%d blocks requested for value %d\n", blocksRequested, value);
 
     HT_CloseFile(info);
 

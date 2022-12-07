@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <record.h>
+#include <limits.h>
 
 #define HT_OK 0
 #define HT_ERROR (-1)
@@ -90,8 +91,6 @@ int HT_InsertEntry(HT_info *header_info, /*επικεφαλίδα του αρχ�
 (όπως αυτό ορίζεται στη HT_info) ίση με value, εκτυπώνονται τα περιεχόμενά της (συμπεριλαμβανομένου και του πεδίου-κλειδιού). Να επιστρέφεται επίσης το πλήθος των blocks που διαβάστηκαν μέχρι να βρεθούν όλες οι εγγραφές. Σε περίπτωση επιτυχίας επιστρέφει το πλήθος των blocks που διαβάστηκαν, ενώ σε περίπτωση λάθους επιστρέφει -1.*/
 int HT_GetAllEntries(HT_info *header_info, /*επικεφαλίδα του αρχείου*/
                      int id /*τιμή του πεδίου-κλειδιού προς αναζήτηση*/);
-
-void HT_PrintAllEntries(HT_info *ht_info);
 
 int HashStatistics(char* filename /* όνομα του αρχείου που ενδιαφέρει */ );
 
