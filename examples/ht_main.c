@@ -45,7 +45,7 @@ int main() {
     }
 
     int value = rand() % RECORDS_NUM;
-    printf("Looking for value %d\n",value);
+    printf("Looking for value %d\n", value);
     int blocksRequested = HT_GetAllEntries(info, value);
     printf("%d blocks requested for value %d\n", blocksRequested, value);
 

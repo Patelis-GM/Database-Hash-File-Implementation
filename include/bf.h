@@ -10,20 +10,20 @@ extern "C" {
 #define BF_MAX_OPEN_FILES 100  /* Ο μέγιστος αριθμός ανοικτών αρχείων */
 
 typedef enum BF_ErrorCode {
-  BF_OK,
-  BF_OPEN_FILES_LIMIT_ERROR,     /* Υπάρχουν ήδη BF_MAX_OPEN_FILES αρχεία ανοικτά */
-  BF_INVALID_FILE_ERROR,         /* Ο αναγνωριστικός αριθμός αρχείου δεν αντιστιχεί σε κάποιο ανοιχτό αρχείο */
-  BF_ACTIVE_ERROR,               /* Το επίπεδο BF είναι ενεργό και δεν μπορεί να αρχικοποιηθεί */
-  BF_FILE_ALREADY_EXISTS,        /* Το αρχείο δεν μπορεί να δημιουργιθεί γιατι υπάρχει ήδη */
-  BF_FULL_MEMORY_ERROR,          /* Η μνήμη έχει γεμίσει με ενεργά block */
-  BF_INVALID_BLOCK_NUMBER_ERROR, /* Το block που ζητήθηκε δεν υπάρχει στο αρχείο */
-  BF_AVAILABLE_PIN_BLOCKS_ERROR, /* Το αρχειο δεν μπορεί να κλείσει επειδή υπάρχουν ενεργά Block στην μνήμη */
-  BF_ERROR
+    BF_OK,
+    BF_OPEN_FILES_LIMIT_ERROR,     /* Υπάρχουν ήδη BF_MAX_OPEN_FILES αρχεία ανοικτά */
+    BF_INVALID_FILE_ERROR,         /* Ο αναγνωριστικός αριθμός αρχείου δεν αντιστιχεί σε κάποιο ανοιχτό αρχείο */
+    BF_ACTIVE_ERROR,               /* Το επίπεδο BF είναι ενεργό και δεν μπορεί να αρχικοποιηθεί */
+    BF_FILE_ALREADY_EXISTS,        /* Το αρχείο δεν μπορεί να δημιουργιθεί γιατι υπάρχει ήδη */
+    BF_FULL_MEMORY_ERROR,          /* Η μνήμη έχει γεμίσει με ενεργά block */
+    BF_INVALID_BLOCK_NUMBER_ERROR, /* Το block που ζητήθηκε δεν υπάρχει στο αρχείο */
+    BF_AVAILABLE_PIN_BLOCKS_ERROR, /* Το αρχειο δεν μπορεί να κλείσει επειδή υπάρχουν ενεργά Block στην μνήμη */
+    BF_ERROR
 } BF_ErrorCode;
 
 typedef enum ReplacementAlgorithm {
-  LRU,
-  MRU
+    LRU,
+    MRU
 } ReplacementAlgorithm;
 
 
@@ -32,7 +32,7 @@ typedef struct BF_Block BF_Block;
 
 /*
  * Η συνάρτηση BF_Block_Init αρχικοποιεί και δεσμεύει την κατάλληλη μνήμη
- * για την δομή BF_BLOCK.
+ * για τη δομή BF_BLOCK.
  */
 void BF_Block_Init(BF_Block **block);
 
@@ -43,7 +43,7 @@ void BF_Block_Init(BF_Block **block);
 void BF_Block_Destroy(BF_Block **block);
 
 /*
- * Η συνάρτηση BF_Block_SetDirty αλάζει την κατάσταση του block σε dirty.
+ * Η συνάρτηση BF_Block_SetDirty αλλάζει την κατάσταση του block σε dirty.
  * Αυτό πρακτικά σημαίνει ότι τα δεδομένα του block έχουν αλλαχθεί και το
  * επίπεδο BF όταν χρειαστεί θα γράψει το block ξανά στον δίσκο. Σε
  * περίπτωση που απλός διαβάζουμε τα δεδομένα χωρίς να τα αλλάζουμε τότε
@@ -56,7 +56,7 @@ void BF_Block_SetDirty(BF_Block *block);
  * Άμα αλάξουμε τα δεδομένα θα πρέπει να κάνουμε το block dirty με την κλήση
  * της συνάρτησης BF_Block_GetData.
  */
-char* BF_Block_GetData(const BF_Block *block);
+char *BF_Block_GetData(const BF_Block *block);
 
 /*
  * Με τη συνάρτηση BF_Init πραγματοποιείται η αρχικοποίηση του επιπέδου BF.
@@ -72,7 +72,7 @@ BF_ErrorCode BF_Init(const ReplacementAlgorithm repl_alg);
  * BF_OK, ενώ σε περίπτωση αποτυχίας επιστρέφεται κωδικός λάθους. Αν θέλετε να
  * δείτε το είδος του λάθους μπορείτε να καλέσετε τη συνάρτηση BF_PrintError.
  */
-BF_ErrorCode BF_CreateFile(const char* filename);
+BF_ErrorCode BF_CreateFile(const char *filename);
 
 /*
  * Η συνάρτηση BF_OpenFile ανοίγει ένα υπάρχον αρχείο από blocks με όνομα
@@ -81,7 +81,7 @@ BF_ErrorCode BF_CreateFile(const char* filename);
  * αποτυχίας, επιστρέφεται ένας κωδικός λάθους. Αν θέλετε να δείτε το είδος
  * του λάθους μπορείτε να καλέσετε τη συνάρτηση BF_PrintError.
  */
-BF_ErrorCode BF_OpenFile(const char* filename, int *file_desc);
+BF_ErrorCode BF_OpenFile(const char *filename, int *file_desc);
 
 /*
  * Η συνάρτηση BF_CloseFile κλείνει το ανοιχτό αρχείο με αναγνωριστικό αριθμό
