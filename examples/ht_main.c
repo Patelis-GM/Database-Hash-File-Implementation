@@ -8,7 +8,7 @@
 #define RECORDS_NUM 30000000
 #define FILE_NAME "data.db"
 
-#define VALUE_CALL_OR_DIE(call)     \
+#define CALL_OR_DIE(call)     \
   {                           \
     BF_ErrorCode code = call; \
     if (code != BF_OK) {      \
@@ -40,22 +40,14 @@ int main() {
     for (int id = 0; id < RECORDS_NUM; ++id) {
         record = randomRecord();
         record.id = rand() % 50;
-//        int bucketIndex = record.id % info->totalBuckets;
-//        printf("To insert Record in Bucket %d  :\n", bucketIndex);
-//        printRecord(record);
-//        printf("Here\n");
+        int bucketIndex = record.id % info->totalBuckets;
+        printf("To insert Record in Bucket %d  :\n", bucketIndex);
+        printRecord(record);
         int blockIndex = HT_InsertEntry(info, record);
-        int totalBlocks;
-        BF_GetBlockCounter(info->fileDescriptor,&totalBlocks);
-        if (totalBlocks != info->totalBlocks){
-            printf("Blocks of file : %d\n", totalBlocks);
-            break;
-        }
-
         if(blockIndex == -1)
             break;
-//        printf("Inserted it in Block %d\n", blockIndex);
-//        printf("------\n");
+        printf("Inserted it in Block %d\n", blockIndex);
+        printf("------\n");
     }
 
 //    printf("RUN PrintAllEntries\n");
@@ -67,8 +59,8 @@ int main() {
 //
 
 
-//    int blocksRequested = HT_GetAllEntries(info, 2);
-//    printf("Blocks Requested : %d\n", blocksRequested);
+    int blocksRequested = HT_GetAllEntries(info, 2);
+    printf("Blocks Requested : %d\n", blocksRequested);
     printf("After insertions file is : \n");
     printf("Total records : %d\n", info->totalRecords);
     printf("Total blocks : %d\n", info->totalBlocks);
@@ -76,15 +68,18 @@ int main() {
     for (int i = 0; i < buckets; ++i)
         printf("Bucket %d goes to block %d\n", i, info->bucketToBlock[i]);
 
-//    printf("------\n");
-//
-//    printf("===============================\n");
-//
-//    HT_PrintAllEntries(info);
-//
-//    printf("===============================\n");
+    printf("------\n");
+
+    printf("===============================\n");
+
+    HT_PrintAllEntries(info);
+
+    printf("===============================\n");
 
 
     HT_CloseFile(info);
+
+    HashStatistics(FILE_NAME);
+
     BF_Close();
 }
