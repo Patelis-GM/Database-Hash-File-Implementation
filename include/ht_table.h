@@ -93,4 +93,7 @@ int HT_GetAllEntries(HT_info *header_info, /*επικεφαλίδα του αρ�
 
 void HT_PrintAllEntries(HT_info *ht_info);
 
+int HashStatistics(char* filename /* όνομα του αρχείου που ενδιαφέρει */ );
+
+
 #endif // HT_FILE_H

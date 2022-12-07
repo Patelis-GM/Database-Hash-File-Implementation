@@ -284,7 +284,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             bucketMetadata.previousBlock = previousBlock;
 
             /* Allocation του Block */
-            VALUE_CALL_OR_DIE( BF_AllocateBlock(fileDescriptor, block))
+            VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
 
 
             blockData = BF_Block_GetData(block);
@@ -319,7 +319,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
 int HT_GetAllEntries(HT_info *ht_info, int value) {
 
-//    printf("Looking for value %d\n", value);
+    printf("Looking for value %d\n", value);
 
     /* Υπολογισμός του Bucket Index του εκάστοτε Record */
     int bucketIndex = value % ht_info->totalBuckets;
@@ -345,7 +345,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
 
     while (keepLooking) {
 
-//        printf("Looking in block %d\n", blockIndex);
+        printf("Looking in block %d\n", blockIndex);
 
         /* Ανάκτηση του κατάλληλου Block */
         VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
@@ -358,7 +358,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
         for (int i = 0; i < bucketMetadata.totalRecords; ++i) {
             memcpy(&record, blockData + sizeof(HT_block_info) + (i * sizeof(Record)), sizeof(Record));
             if (record.id == value) {
-//                printRecord(record);
+                printRecord(record);
                 foundValue = true;
             }
 
@@ -432,4 +432,119 @@ void HT_PrintAllEntries(HT_info *ht_info) {
 }
 
 
+int HashStatistics(char *filename) {
+
+    HT_info *info = HT_OpenFile(filename);
+
+    if (info == NULL)
+        return HT_ERROR;
+
+    printf("Total blocks of Hash File : %d\n", info->totalBlocks);
+
+    int bucketBlocks[info->totalBuckets];
+    int bucketRecords[info->totalBuckets];
+    int fileDescriptor = info->fileDescriptor;
+    BF_Block *block;
+    char *blockData;
+    HT_block_info bucketMetadata;
+    BF_Block_Init(&block);
+
+    for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex) {
+
+        int blockIndex = info->bucketToBlock[bucketIndex];
+
+        /* Το allocation των Buckets του Hash File γίνεται on demand */
+        if (blockIndex == NONE) {
+            bucketBlocks[bucketIndex] = 0;
+            bucketRecords[bucketIndex] = 0;
+        }
+
+        else {
+
+            bool keepLooking = true;
+            int totalRecords = 0;
+            int totalBlocks = 0;
+
+            while (keepLooking) {
+
+                /* Ανάκτηση του κατάλληλου Block */
+                VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+                blockData = BF_Block_GetData(block);
+
+                /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */
+                memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
+                totalBlocks += 1;
+                totalRecords += bucketMetadata.totalRecords;
+
+                VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+                /* Ανάκτηση του Index του προηγούμενου Block */
+                blockIndex = bucketMetadata.previousBlock;
+
+                if (blockIndex == NONE)
+                    keepLooking = false;
+
+            }
+
+
+            bucketBlocks[bucketIndex] = totalBlocks;
+            bucketRecords[bucketIndex] = totalRecords;
+
+        }
+
+    }
+
+
+    int averageNumberOfBlocks = 0;
+    for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex)
+        averageNumberOfBlocks += bucketBlocks[bucketIndex];
+    printf("%f number of blocks per bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalBuckets));
+
+
+    int mostRecords = INT_MIN;
+    int mostRecordsIndex;
+    int leastRecords = INT_MAX;
+    int leastRecordsIndex;
+    int averageNumberOfRecords = 0;
+
+    for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex) {
+
+        int totalRecords = bucketRecords[bucketIndex];
+        printf("Bucket %d has %d records\n", bucketIndex, totalRecords);
+
+        if (totalRecords > mostRecords) {
+            mostRecords = totalRecords;
+            mostRecordsIndex = bucketIndex;
+        }
+
+        if (totalRecords < leastRecords) {
+            leastRecords = totalRecords;
+            leastRecordsIndex = bucketIndex;
+        }
+
+        averageNumberOfRecords += totalRecords;
+    }
+    printf("%f number of records per bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalBuckets));
+    printf("Bucket %d has the least number of %d records\n", leastRecordsIndex, leastRecords);
+    printf("Bucket %d has the maximum number of %d records\n", mostRecordsIndex, mostRecords);
+
+
+    int totalBucketsWithOverflow = 0;
+    for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex)
+        if (bucketBlocks[bucketIndex] > 1) {
+            totalBucketsWithOverflow += 1;
+            printf("Bucket %d has %d overflow blocks\n", bucketIndex, bucketBlocks[bucketIndex] - 1);
+        }
+    printf("Overflow occurs in %d buckets\n", totalBucketsWithOverflow);
+
+
+    BF_Block_Destroy(&block);
+
+    int code = HT_CloseFile(info);
+
+    if (code != HT_OK)
+        return HT_ERROR;
+
+    return HT_OK;
+}
 
