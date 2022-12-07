@@ -498,7 +498,7 @@ int HashStatistics(char *filename) {
     int averageNumberOfBlocks = 0;
     for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex)
         averageNumberOfBlocks += bucketBlocks[bucketIndex];
-    printf("%f number of blocks per bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalBuckets));
+    printf("%f is the average number of blocks per bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalBuckets));
 
 
     int mostRecords = INT_MIN;
@@ -524,7 +524,7 @@ int HashStatistics(char *filename) {
 
         averageNumberOfRecords += totalRecords;
     }
-    printf("%f number of records per bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalBuckets));
+    printf("%f is the average number of records per bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalBuckets));
     printf("Bucket %d has the least number of %d records\n", leastRecordsIndex, leastRecords);
     printf("Bucket %d has the maximum number of %d records\n", mostRecordsIndex, mostRecords);
 
