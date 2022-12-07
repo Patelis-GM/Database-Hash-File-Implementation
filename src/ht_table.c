@@ -12,8 +12,7 @@
   {                           \
     BF_ErrorCode code = call; \
     if (code != BF_OK) {      \
-      BF_PrintError(code);          \
-      printf("Code is : %d\n", code);\
+      BF_PrintError(code);    \
       return HT_ERROR;        \
     }                         \
   }
@@ -24,7 +23,7 @@
     BF_ErrorCode code = call; \
     if (code != BF_OK) {      \
       BF_PrintError(code);    \
-      return NULL;             \
+      return NULL;            \
     }                         \
   }
 
@@ -110,28 +109,35 @@ HT_info *HT_OpenFile(char *fileName) {
     char hashFileIdentifier;
     memcpy(&hashFileIdentifier, blockData, sizeof(char));
 
+    /* Το πρώτο byte του Hash File πρέπει να έχει αξία ιση με HASH_FILE_IDENTIFIER */
     if (hashFileIdentifier != HASH_FILE_IDENTIFIER) {
 
         printf("First byte of HEADER-BLOCK should be : %c\n", HASH_FILE_IDENTIFIER);
 
+        /* Unpin του 1ου Block */
         POINTER_CALL_OR_DIE(BF_UnpinBlock(block))
 
+        /* Κλείσιμο του εκάστοτε αρχείου */
         POINTER_CALL_OR_DIE(BF_CloseFile(fileDescriptor))
 
+        /* Αποδέσμευση του BF_Block */
         BF_Block_Destroy(&block);
         return NULL;
     }
 
+    /* Αντιγραφή των μεταδεδομένων του 1ου Block στη δομή HT_info */
     HT_info *headerMetadata = (HT_info *) malloc(sizeof(HT_info));
     memcpy(headerMetadata, blockData + sizeof(char), sizeof(HT_info));
 
+    /* Unpin του 1ου Block */
     POINTER_CALL_OR_DIE(BF_UnpinBlock(block))
 
+    /* Αποδέσμευση του BF_Block */
     BF_Block_Destroy(&block);
     return headerMetadata;
 }
 
-
+/* Βοηθητική συνάρτηση για να κριθεί αν δυο δομές HT_info διαφέρουν μεταξύ τους */
 bool areDifferent(HT_info *htInfo, HT_info *anotherHtInfo) {
 
     if (htInfo->totalBlocks != anotherHtInfo->totalBlocks || htInfo->totalRecords != anotherHtInfo->totalRecords)
@@ -152,23 +158,34 @@ int HT_CloseFile(HT_info *ht_info) {
     BF_Block *block;
     BF_Block_Init(&block);
 
+    /* Ανάκτηση του 1ου Block του Hash File */
     VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, HEADER_BLOCK, block))
 
     char *blockData = BF_Block_GetData(block);
 
+    /* Ανάκτηση των μεταδεδομένων του 1ου Block του Hash File */
     HT_info headerMetadata;
     memcpy(&headerMetadata, blockData + sizeof(char), sizeof(HT_info));
 
+    /* Έλεγχος για τον αν η δομή HT_info* ht_info διαφέρει με τα μεταδεδομένα του 1ου Block του Hash file */
     if (areDifferent(ht_info, &headerMetadata)) {
+
+        /* Εφόσον οι δυο δομές διαφέρουν μεταξύ τους ενημέρωση των μεταδεδομένων του 1ου Block του Hash file */
         memcpy(blockData + sizeof(char), ht_info, sizeof(HT_info));
+
         BF_Block_SetDirty(block);
     }
 
+    /* Unpin του 1ου Block του Hash File */
     VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
+    /* Αποδέσμευση μνήμης εφόσον η δομή HT_info* ht_info δεσμεύθηκε δυναμικά */
     free(ht_info);
+
+    /* Κλείσιμο του Hash File */
     VALUE_CALL_OR_DIE(BF_CloseFile(fileDescriptor))
 
+    /* Αποδέσμευση του BF_Block */
     BF_Block_Destroy(&block);
 
     return HT_OK;
