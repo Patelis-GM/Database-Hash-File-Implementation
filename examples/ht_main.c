@@ -19,7 +19,7 @@
 
 int main() {
 
-    BF_Init(MRU);
+    BF_Init(LRU);
 
     int buckets = 10;
 
