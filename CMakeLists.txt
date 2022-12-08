@@ -7,12 +7,12 @@ include_directories(include)
 
 add_executable(Exercises_DB
         examples/bf_main.c
-        examples/hp_main.c
         examples/ht_main.c
+        examples/sht_main.c
         include/bf.h
-        include/hp_file.h
+        include/sht_table.h
         include/ht_table.h
         include/record.h
-        src/hp_file.c
         src/ht_table.c
+        src/sht_table.c
         src/record.c)

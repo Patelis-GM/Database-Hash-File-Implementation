@@ -1,7 +1,6 @@
 #ifndef RECORD_H
 #define RECORD_H
 
-
 typedef enum Record_Attribute {
     ID,
     NAME,
@@ -17,8 +16,18 @@ typedef struct Record {
     char city[20];
 } Record;
 
+typedef struct SecondaryRecord {
+    char name[15];
+    int blockIndex;
+} SecondaryRecord;
+
+
 Record randomRecord();
 
 void printRecord(Record record);
+
+SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex);
+
+void printSecondaryRecord(SecondaryRecord secondaryRecord);
 
 #endif

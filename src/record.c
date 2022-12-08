@@ -62,9 +62,19 @@ Record randomRecord() {
     return record;
 }
 
+SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex) {
+    SecondaryRecord secondaryRecord;
+    memcpy(secondaryRecord.name, record.name, strlen(record.name) + 1);
+    secondaryRecord.blockIndex = blockIndex;
+    return secondaryRecord;
+}
+
 void printRecord(Record record) {
     printf("(%d, %s, %s, %s)\n", record.id, record.name, record.surname, record.city);
 }
 
+void printSecondaryRecord(SecondaryRecord secondaryRecord) {
+    printf("(%d, %s)\n", secondaryRecord.blockIndex, secondaryRecord.name);
+}
 
 

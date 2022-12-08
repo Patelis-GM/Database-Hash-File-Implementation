@@ -138,7 +138,7 @@ HT_info *HT_OpenFile(char *fileName) {
 }
 
 /* Βοηθητική συνάρτηση για να κριθεί αν δυο δομές HT_info διαφέρουν μεταξύ τους */
-bool areDifferent(HT_info *htInfo, HT_info *anotherHtInfo) {
+bool HT_areDifferent(HT_info *htInfo, HT_info *anotherHtInfo) {
 
     if (htInfo->totalBlocks != anotherHtInfo->totalBlocks || htInfo->totalRecords != anotherHtInfo->totalRecords)
         return true;
@@ -168,7 +168,7 @@ int HT_CloseFile(HT_info *ht_info) {
     memcpy(&headerMetadata, blockData + sizeof(char), sizeof(HT_info));
 
     /* Έλεγχος για τον αν η δομή HT_info* ht_info διαφέρει με τα μεταδεδομένα του 1ου Block του Hash file */
-    if (areDifferent(ht_info, &headerMetadata)) {
+    if (HT_areDifferent(ht_info, &headerMetadata)) {
 
         /* Εφόσον οι δυο δομές διαφέρουν μεταξύ τους ενημέρωση των μεταδεδομένων του 1ου Block του Hash file */
         memcpy(blockData + sizeof(char), ht_info, sizeof(HT_info));
@@ -378,7 +378,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
     return blocksRequested;
 }
 
-int HashStatistics(char *filename) {
+int primaryHashStatistics(char *filename) {
 
     HT_info *info = HT_OpenFile(filename);
 
