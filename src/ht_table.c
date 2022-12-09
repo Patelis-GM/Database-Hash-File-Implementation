@@ -52,6 +52,7 @@ int HT_CreateFile(char *fileName, int buckets) {
 
     /* Δημιουργία και αρχικοποίηση μιας δομής HT_info που θα αντιγραφεί στο 1ο Block του Hash File */
     HT_info headerMetadata;
+    headerMetadata.maxRecords = MAX_RECORDS;
     headerMetadata.totalBuckets = buckets;
     headerMetadata.totalRecords = 0;
     headerMetadata.totalBlocks = 1;
@@ -60,12 +61,12 @@ int HT_CreateFile(char *fileName, int buckets) {
     /* Τα Buckets του Hash File γίνονται allocate on demand.
      * Ενημέρωσή του πίνακα κατακερματισμού ως εξής :
      *
-     * (1) Bucket 0 -> Block - [-1]
-     * (2) Bucket 1 -> Block - [-1]
+     * (1) Bucket 0 -> Block - NONE
+     * (2) Bucket 1 -> Block - NONE
      * (3) ...
-     * (4) Bucket (buckets - 1) -> Block - [-1]
+     * (4) Bucket (buckets - 1) -> Block - NONE
      * (5) ...
-     * (6) Bucket (MAX_BUCKETS - 1) -> Block - [-1]
+     * (6) Bucket (MAX_BUCKETS - 1) -> Block - NONE
      *
      * Τα (5) - (6) δεν είναι απαραίτητα αλλά πραγματοποιούνται για λόγους συνέπειας
      */
@@ -248,7 +249,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
 
         /* Το εκάστοτε Block που ανακτήθηκε έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
-        if (bucketMetadata.totalRecords < MAX_RECORDS) {
+        if (bucketMetadata.totalRecords < ht_info->maxRecords) {
 
             /* Αντιγραφή του εκάστοτε Record στην κατάλληλη θέση του Block */
             memcpy(blockData + sizeof(HT_block_info) + (bucketMetadata.totalRecords * sizeof(Record)), &record,

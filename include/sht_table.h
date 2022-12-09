@@ -16,12 +16,13 @@
 /* Identifier του Secondary Hash File */
 #define SECONDARY_HASH_FILE_IDENTIFIER 'S'
 
-#define MAX_SECONDARY_BUCKETS (((BF_BLOCK_SIZE  - (4 * sizeof(int)) - sizeof(char)) / sizeof(int)) / 2)
+#define MAX_SECONDARY_BUCKETS (((BF_BLOCK_SIZE  - (5 * sizeof(int)) - sizeof(char)) / sizeof(int)) / 2)
 
 /* Μέγιστος αριθμός Records ανα Block */
 #define MAX_SECONDARY_RECORDS ((BF_BLOCK_SIZE - sizeof(SHT_block_info)) / sizeof(SecondaryRecord))
 
 typedef struct {
+    int maxSecondaryRecords;
     int totalSecondaryBuckets;
     int totalSecondaryBlocks;
     int totalSecondaryRecords;

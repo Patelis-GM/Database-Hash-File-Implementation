@@ -51,6 +51,7 @@ int SHT_CreateSecondaryIndex(char *sfileName, int buckets, char *fileName) {
 
     /* Δημιουργία και αρχικοποίηση μιας δομής SHT_info που θα αντιγραφεί στο 1ο Block του Secondary Hash File */
     SHT_info headerMetadata;
+    headerMetadata.maxSecondaryRecords = MAX_SECONDARY_RECORDS;
     headerMetadata.totalSecondaryBuckets = buckets;
     headerMetadata.totalSecondaryRecords = 0;
     headerMetadata.totalSecondaryBlocks = 1;
@@ -59,12 +60,12 @@ int SHT_CreateSecondaryIndex(char *sfileName, int buckets, char *fileName) {
     /* Τα Buckets του Secondary Hash File γίνονται allocate on demand.
      * Ενημέρωσή του πίνακα κατακερματισμού ως εξής :
      *
-     * (1) Bucket 0 -> Block - [-1]
-     * (2) Bucket 1 -> Block - [-1]
+     * (1) Bucket 0 -> Block - NONE
+     * (2) Bucket 1 -> Block - NONE
      * (3) ...
-     * (4) Bucket (buckets - 1) -> Block - [-1]
+     * (4) Bucket (buckets - 1) -> Block - NONE
      * (5) ...
-     * (6) Bucket (MAX_SECONDARY_BUCKETS - 1) -> Block - [-1]
+     * (6) Bucket (MAX_SECONDARY_BUCKETS - 1) -> Block - NONE
      *
      * Τα (5) - (6) δεν είναι απαραίτητα αλλά πραγματοποιούνται για λόγους συνέπειας
      */
