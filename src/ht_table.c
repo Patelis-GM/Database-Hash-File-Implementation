@@ -9,22 +9,33 @@
 
 
 #define VALUE_CALL_OR_DIE(call)     \
-  {                           \
-    BF_ErrorCode code = call; \
-    if (code != BF_OK) {      \
-      BF_PrintError(code);    \
-      return HT_ERROR;        \
-    }                         \
+  {                                 \
+    BF_ErrorCode code = call;       \
+    if (code != BF_OK) {            \
+      BF_PrintError(code);          \
+      return HT_ERROR;              \
+    }                               \
   }
 
+#define INSERT_CALL_OR_DIE(call)              \
+  {                                           \
+    BF_ErrorCode code = call;                 \
+    if (code != BF_OK) {                      \
+      BF_PrintError(code);                    \
+      InsertPosition insertPosition;          \
+      insertPosition.blockIndex = HT_ERROR;   \
+      insertPosition.recordIndex = HT_ERROR;  \
+      return insertPosition;                  \
+    }                                         \
+  }
 
 #define POINTER_CALL_OR_DIE(call)     \
-  {                           \
-    BF_ErrorCode code = call; \
-    if (code != BF_OK) {      \
-      BF_PrintError(code);    \
-      return NULL;            \
-    }                         \
+  {                                   \
+    BF_ErrorCode code = call;         \
+    if (code != BF_OK) {              \
+      BF_PrintError(code);            \
+      return NULL;                    \
+    }                                 \
   }
 
 
@@ -192,13 +203,14 @@ int HT_CloseFile(HT_info *ht_info) {
     return HT_OK;
 }
 
-int HT_InsertEntry(HT_info *ht_info, Record record) {
+InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
 
     /* Υπολογισμός του Bucket Index του εκάστοτε Record */
     int bucketIndex = record.id % ht_info->totalBuckets;
 
     /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Bucket Index */
     int blockIndex = ht_info->bucketToBlock[bucketIndex];
+    int recordIndex;
 
     int fileDescriptor = ht_info->fileDescriptor;
 
@@ -215,7 +227,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         bucketMetadata.previousBlock = NONE;
 
         /* Allocation του Block */
-        VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
+        INSERT_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
         blockData = BF_Block_GetData(block);
 
         /* Αντιγραφή των μεταδεδομένων στο allocated Block */
@@ -225,7 +237,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
 
         BF_Block_SetDirty(block);
-        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+        INSERT_CALL_OR_DIE(BF_UnpinBlock(block))
 
         /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info για το Block που αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
         ht_info->bucketToBlock[bucketIndex] = ht_info->totalBlocks;
@@ -234,6 +246,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
         ht_info->totalBlocks += 1;
 
         blockIndex = ht_info->bucketToBlock[bucketIndex];
+        recordIndex = 0;
     }
 
         /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
@@ -241,7 +254,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
 
 
         /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Bucket Index καθώς και των μεταδεδομένων αυτού */
-        VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+        INSERT_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
 
         blockData = BF_Block_GetData(block);
 
@@ -260,8 +273,8 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
 
             BF_Block_SetDirty(block);
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-
+            INSERT_CALL_OR_DIE(BF_UnpinBlock(block))
+            recordIndex = bucketMetadata.totalRecords - 1;
         }
 
             /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
@@ -278,14 +291,14 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             int nextBlock = ht_info->totalBlocks;
 
             /* Αποδέσμευση του τωρινού Block */
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+            INSERT_CALL_OR_DIE(BF_UnpinBlock(block))
 
             /* Αρχικοποίηση των μεταδεδομένων του Block που θα γίνει allocate */
             bucketMetadata.totalRecords = 1;
             bucketMetadata.previousBlock = previousBlock;
 
             /* Allocation του Block */
-            VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
+            INSERT_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
 
 
             blockData = BF_Block_GetData(block);
@@ -297,7 +310,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             memcpy(blockData + sizeof(HT_block_info), &record, sizeof(Record));
 
             BF_Block_SetDirty(block);
-            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+            INSERT_CALL_OR_DIE(BF_UnpinBlock(block))
 
             /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
             ht_info->totalBlocks += 1;
@@ -306,6 +319,7 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
             ht_info->bucketToBlock[bucketIndex] = nextBlock;
 
             blockIndex = nextBlock;
+            recordIndex = 0;
         }
 
 
@@ -315,7 +329,12 @@ int HT_InsertEntry(HT_info *ht_info, Record record) {
     ht_info->totalRecords += 1;
 
     BF_Block_Destroy(&block);
-    return blockIndex;
+
+    InsertPosition insertPosition;
+    insertPosition.blockIndex = blockIndex;
+    insertPosition.recordIndex = recordIndex;
+
+    return insertPosition;
 }
 
 int HT_GetAllEntries(HT_info *ht_info, int value) {

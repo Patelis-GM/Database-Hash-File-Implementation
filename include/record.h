@@ -19,6 +19,7 @@ typedef struct Record {
 typedef struct SecondaryRecord {
     char name[15];
     int blockIndex;
+    int recordIndex;
 } SecondaryRecord;
 
 
@@ -26,7 +27,7 @@ Record randomRecord();
 
 void printRecord(Record record);
 
-SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex);
+SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex, int recordIndex);
 
 void printSecondaryRecord(SecondaryRecord secondaryRecord);
 

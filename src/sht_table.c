@@ -206,23 +206,127 @@ unsigned int hash(SecondaryRecord *secondaryRecord) {
     return hashValue;
 }
 
-int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, int block_id) {
+int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition insertPosition) {
 
-    SecondaryRecord secondaryRecord = secondaryRecordFromRecord(record, block_id);
+    SecondaryRecord secondaryRecord = secondaryRecordFromRecord(record, insertPosition.blockIndex, insertPosition.recordIndex);
+
     unsigned int hashValue = hash(&secondaryRecord);
     int bucketIndex = hashValue % sht_info->totalSecondaryBuckets;
     int blockIndex = sht_info->bucketToBlock[bucketIndex];
 
+    int fileDescriptor = sht_info->fileDescriptor;
+
+    BF_Block *block;
+    char *blockData;
+    SHT_block_info bucketMetadata;
+    BF_Block_Init(&block);
+
+    /* Εφόσον το allocation των Buckets του Secondary Hash File γίνεται on demand ενδεχομένως να μην έχει γίνει Block allocation για το εκάστοτε Bucket Index */
     if (blockIndex == NONE) {
 
+        /* Μεταδεδομένα του Block που πρόκειται να γίνει allocate και θα αντιγραφούν σε αυτό */
+        bucketMetadata.totalSecondaryRecords = 1;
+        bucketMetadata.previousBlock = NONE;
+
+        /* Allocation του Block */
+        VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
+        blockData = BF_Block_GetData(block);
+
+        /* Αντιγραφή των μεταδεδομένων στο allocated Block */
+        memcpy(blockData, &bucketMetadata, sizeof(SHT_block_info));
+
+        /* Αντιγραφή του εκάστοτε Secondary Record στην κατάλληλη θέση του allocated Block */
+        memcpy(blockData + sizeof(SHT_block_info), &secondaryRecord, sizeof(SecondaryRecord));
+
+        BF_Block_SetDirty(block);
+        VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+        /* Ενημέρωση του πίνακα κατακερματισμού της δομής SHT_info για το Block που αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
+        sht_info->bucketToBlock[bucketIndex] = sht_info->totalSecondaryBlocks;
+
+        /* Ενημέρωση της δομής SHT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Secondary Hash File */
+        sht_info->totalSecondaryBlocks += 1;
+
+        blockIndex = sht_info->bucketToBlock[bucketIndex];
     }
 
+        /* Το allocation των Buckets του Secondary Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
     else {
 
+        /* Ανάκτηση του Block που αντιστοιχεί στο εκάστοτε Bucket Index καθώς και των μεταδεδομένων αυτού */
+        VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+
+        blockData = BF_Block_GetData(block);
+
+        /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή SHT_block_info bucketMetadata */
+        memcpy(&bucketMetadata, blockData, sizeof(SHT_block_info));
+
+        /* Το εκάστοτε Block που ανακτήθηκε έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
+        if (bucketMetadata.totalSecondaryRecords < sht_info->maxSecondaryRecords) {
+
+            /* Αντιγραφή του εκάστοτε Secondary Record στην κατάλληλη θέση του Block */
+            memcpy(blockData + sizeof(SHT_block_info) + (bucketMetadata.totalSecondaryRecords * sizeof(SecondaryRecord)), &secondaryRecord,
+                   sizeof(SecondaryRecord));
+
+            /* Ενημέρωση των μεταδεδομένων του Block και αντιγραφή αυτών στο τελευταίο */
+            bucketMetadata.totalSecondaryRecords += 1;
+            memcpy(blockData, &bucketMetadata, sizeof(SHT_block_info));
+
+            BF_Block_SetDirty(block);
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+        }
+
+            /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Secondary Record */
+        else {
+
+            /* Εφόσον θα πραγματοποιηθεί allocation ενός νέου Block λόγω overflow :
+             *
+             * # Το επόμενο Block του τωρινού Block θα είναι ο αριθμός των Blocks του Hash File ΠΡΙΝ το allocation.
+             *   Aν το Secondary Hash File απαρτίζεται απο έστω 5 Blocks στη συνέχεια θα απαρτίζεται απο 6 Blocks και το index του allocated Block θα είναι το 5
+             *
+             * # Το προηγούμενο Block του allocated Block θα είναι το index του Block στο οποίο έγινε απόπειρα για την εισαγωγή του εκάστοτε Secondary Record
+             */
+            int previousBlock = blockIndex;
+            int nextBlock = sht_info->totalSecondaryBlocks;
+
+            /* Αποδέσμευση του τωρινού Block */
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+            /* Αρχικοποίηση των μεταδεδομένων του Block που θα γίνει allocate */
+            bucketMetadata.totalSecondaryRecords = 1;
+            bucketMetadata.previousBlock = previousBlock;
+
+            /* Allocation του Block */
+            VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
+
+            blockData = BF_Block_GetData(block);
+
+            /* Αντιγραφή των μεταδεδομένων στο allocated Block */
+            memcpy(blockData, &bucketMetadata, sizeof(SHT_block_info));
+
+            /* Αντιγραφή του εκάστοτε Secondary Record στην κατάλληλη θέση του allocated Block */
+            memcpy(blockData + sizeof(SHT_block_info), &secondaryRecord, sizeof(SecondaryRecord));
+
+            BF_Block_SetDirty(block);
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+            /* Ενημέρωση της δομής SHT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Secondary Hash File */
+            sht_info->totalSecondaryBlocks += 1;
+
+            /* Ενημέρωση του πίνακα κατακερματισμού της δομής SHT_info οτι το allocated Block αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
+            sht_info->bucketToBlock[bucketIndex] = nextBlock;
+
+            blockIndex = nextBlock;
+        }
+
     }
 
+    /* Ενημέρωση της δομής SHT_info για τον συνολικό αριθμό των Secondary Records του Secondary Hash File */
+    sht_info->totalSecondaryRecords += 1;
+    BF_Block_Destroy(&block);
     return blockIndex;
 }
+
 
 int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name) {
 
@@ -234,4 +338,3 @@ int secondaryHashStatistics(char *filename) {
 
     return SHT_OK;
 }
-

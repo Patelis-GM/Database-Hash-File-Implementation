@@ -62,10 +62,11 @@ Record randomRecord() {
     return record;
 }
 
-SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex) {
+SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex, int recordIndex) {
     SecondaryRecord secondaryRecord;
     memcpy(secondaryRecord.name, record.name, strlen(record.name) + 1);
     secondaryRecord.blockIndex = blockIndex;
+    secondaryRecord.recordIndex = recordIndex;
     return secondaryRecord;
 }
 
@@ -74,7 +75,7 @@ void printRecord(Record record) {
 }
 
 void printSecondaryRecord(SecondaryRecord secondaryRecord) {
-    printf("(%d, %s)\n", secondaryRecord.blockIndex, secondaryRecord.name);
+    printf("(%d, %d, %s)\n", secondaryRecord.blockIndex, secondaryRecord.recordIndex, secondaryRecord.name);
 }
 
 

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 #include "bf.h"
 #include "ht_table.h"
@@ -39,8 +38,8 @@ int main() {
 
     for (int id = 0; id < RECORDS_NUM; ++id) {
         record = randomRecord();
-        int blockIndex = HT_InsertEntry(info, record);
-        if (blockIndex == HT_ERROR)
+        InsertPosition insertPosition = HT_InsertEntry(info, record);
+        if (insertPosition.blockIndex == HT_ERROR || insertPosition.recordIndex == HT_ERROR)
             return 1;
     }
 
@@ -51,7 +50,7 @@ int main() {
 
     HT_CloseFile(info);
 
-    HashStatistics(FILE_NAME);
+    primaryHashStatistics(FILE_NAME);
 
     BF_Close();
 }

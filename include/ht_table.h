@@ -50,6 +50,11 @@ typedef struct {
 } HT_block_info;
 
 
+typedef struct {
+    int blockIndex;
+    int recordIndex;
+} InsertPosition;
+
 /*Η συνάρτηση HT_CreateFile χρησιμοποιείται για τη δημιουργία
 και κατάλληλη αρχικοποίηση ενός άδειου αρχείου κατακερματισμού
 με όνομα fileName. Έχει σαν παραμέτρους εισόδου το όνομα του
@@ -83,7 +88,7 @@ int HT_CloseFile(HT_info *ht_info);
 δομή header_info, ενώ η εγγραφή προς εισαγωγή προσδιορίζεται από τη δομή record.
 Σε περίπτωση που εκτελεστεί επιτυχώς, επιστρέφετε τον αριθμό του block στο οποίο
 έγινε η εισαγωγή (blockId), ενώ σε διαφορετική περίπτωση -1.*/
-int HT_InsertEntry(HT_info *header_info, /*επικεφαλίδα του αρχείου*/
+InsertPosition HT_InsertEntry(HT_info *header_info, /*επικεφαλίδα του αρχείου*/
                    Record record /*δομή που προσδιορίζει την εγγραφή*/);
 
 /* Η συνάρτηση αυτή χρησιμοποιείται για την εκτύπωση όλων των εγγραφών που υπάρχουν
