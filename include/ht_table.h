@@ -102,7 +102,7 @@ int HT_GetAllEntries(HT_info *header_info, /*επικεφαλίδα του αρ�
 int primaryHashStatistics(char *filename /* όνομα του αρχείου που ενδιαφέρει */ );
 
 /* Βοηθητική συνάρτηση για την εκτύπωση των περισσοτέρων πληροφοριών του Hash - File */
-int completeHashFile(HT_info *ht_info);
+int completePrimaryHashFile(HT_info *ht_info);
 
 
 #endif // HT_FILE_H

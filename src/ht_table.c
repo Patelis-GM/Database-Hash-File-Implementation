@@ -523,3 +523,86 @@ int primaryHashStatistics(char *filename) {
     return HT_OK;
 }
 
+int completePrimaryHashFile(HT_info *ht_info) {
+
+
+    int fileDescriptor = ht_info->fileDescriptor;
+    int totalBuckets = ht_info->totalBuckets;
+    int maxRecords = ht_info->maxRecords;
+    int totalBlocks = ht_info->totalBlocks;
+
+    printf("##########\n");
+    printf("Complete Hash File\n");
+    printf("Max Records per Block : %d\n", maxRecords);
+    printf("Total Blocks of Hash File : %d\n", totalBlocks);
+
+    BF_Block *block;
+    char *blockData;
+    HT_block_info bucketMetadata;
+    Record record;
+
+    BF_Block_Init(&block);
+
+    for (int bucketIndex = 0; bucketIndex < totalBuckets; ++bucketIndex) {
+
+        int blockIndex = ht_info->bucketToBlock[bucketIndex];
+
+        /* Το allocation των Buckets του Hash File γίνεται on demand */
+        if (blockIndex == NONE) {
+            printf("##########\n");
+            printf("Bucket %d has 0 Blocks\n", bucketIndex);
+            printf("Bucket %d has 0 overflow Blocks\n", bucketIndex);
+            printf("Bucket %d has 0 Records\n", bucketIndex);
+            printf("##########\n\n");
+        }
+
+        else {
+
+            bool keepLooking = true;
+            bool printMetadata = true;
+
+            while (keepLooking) {
+
+                /* Ανάκτηση του κατάλληλου Block */
+                VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+                blockData = BF_Block_GetData(block);
+
+                /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */
+                memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
+
+                /* Εκτύπωση των μεταδεδομένων του τελευταίου μόνο Block του εκάστοτε Bucket */
+                if (printMetadata) {
+                    printf("##########\n");
+                    printf("Bucket %d has %d Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar);
+                    printf("Bucket %d has %d overflow Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar - 1);
+                    printf("Bucket %d has %d Records\n", bucketIndex, bucketMetadata.bucketRecordsSoFar);
+                    printMetadata = false;
+                }
+
+                printf("\n\nBlock %d Records :\n", blockIndex);
+                for (int i = 0; i < bucketMetadata.totalRecords; ++i) {
+                    memcpy(&record, blockData + sizeof(HT_block_info) + (i * sizeof(Record)), sizeof(Record));
+                    printRecord(record);
+                }
+
+                VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+                /* Ανάκτηση του Index του προηγούμενου Block */
+                blockIndex = bucketMetadata.previousBlock;
+                if (blockIndex == NONE)
+                    keepLooking = false;
+
+            }
+
+            printf("##########\n\n");
+        }
+
+
+    }
+
+
+    BF_Block_Destroy(&block);
+
+
+    return HT_OK;
+}

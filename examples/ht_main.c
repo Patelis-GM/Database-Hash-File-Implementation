@@ -66,7 +66,7 @@ int main() {
 
 
     /* Προαιρετικά */
-    int status = completeHashFile(info);
+    int status = completePrimaryHashFile(info);
     if (status == HT_ERROR) {
         BF_Close();
         exit(1);

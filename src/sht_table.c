@@ -199,7 +199,7 @@ unsigned int hash(const char *field) {
     unsigned int hashValue = 5381;
 
     for (int i = 0; i < strlen(field); ++i) {
-        character = field[i];
+        character = (int) field[i];
         hashValue = ((hashValue << 5) + hashValue) + character;
     }
 
@@ -416,6 +416,195 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
 }
 
 int secondaryHashStatistics(char *filename) {
+
+    SHT_info *info = SHT_OpenSecondaryIndex(filename);
+
+    if (info == NULL)
+        return SHT_ERROR;
+
+    printf("Total Blocks of Secondary Hash File : %d\n", info->totalSecondaryBlocks);
+
+    int bucketBlocks[info->totalSecondaryBuckets];
+    int bucketRecords[info->totalSecondaryBuckets];
+    int fileDescriptor = info->fileDescriptor;
+    BF_Block *block;
+    char *blockData;
+    SHT_block_info bucketMetadata;
+    BF_Block_Init(&block);
+
+    for (int bucketIndex = 0; bucketIndex < info->totalSecondaryBuckets; ++bucketIndex) {
+
+        int blockIndex = info->bucketToBlock[bucketIndex];
+
+        /* Το allocation των Buckets του Secondary Hash File γίνεται on demand */
+        if (blockIndex == NONE) {
+            bucketBlocks[bucketIndex] = 0;
+            bucketRecords[bucketIndex] = 0;
+        }
+
+        else {
+
+            int totalRecords;
+            int totalBlocks;
+
+            /* Ανάκτηση του κατάλληλου Block */
+            VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+            blockData = BF_Block_GetData(block);
+
+            /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή SHT_block_info bucketMetadata */
+            memcpy(&bucketMetadata, blockData, sizeof(SHT_block_info));
+
+            totalBlocks = bucketMetadata.bucketBlocksSoFar;
+            totalRecords = bucketMetadata.bucketRecordsSoFar;
+
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+            bucketBlocks[bucketIndex] = totalBlocks;
+            bucketRecords[bucketIndex] = totalRecords;
+
+        }
+
+    }
+
+    /* Υπολογισμός του μέσου αριθμού των Blocks ανα Bucket */
+    int averageNumberOfBlocks = 0;
+    for (int bucketIndex = 0; bucketIndex < info->totalSecondaryBuckets; ++bucketIndex)
+        averageNumberOfBlocks += bucketBlocks[bucketIndex];
+    printf("%.2f is the average number of Blocks per Bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalSecondaryBuckets));
+
+
+    int mostRecords = INT_MIN;
+    int mostRecordsIndex;
+    int leastRecords = INT_MAX;
+    int leastRecordsIndex;
+    int averageNumberOfRecords = 0;
+
+    /* Υπολογισμός των παρακάτω :
+     *
+     * # Μέσος αριθμός Secondary Records ανα Bucket
+     * # Bucket με τον ελάχιστο αριθμό απο Secondary Records
+     * # Bucket με τον μέγιστο αριθμό απο Secondary Records */
+    for (int bucketIndex = 0; bucketIndex < info->totalSecondaryBuckets; ++bucketIndex) {
+
+        int totalRecords = bucketRecords[bucketIndex];
+        printf("Bucket %d has %d Secondary Record(s)\n", bucketIndex, totalRecords);
+
+        if (totalRecords > mostRecords) {
+            mostRecords = totalRecords;
+            mostRecordsIndex = bucketIndex;
+        }
+
+        if (totalRecords < leastRecords) {
+            leastRecords = totalRecords;
+            leastRecordsIndex = bucketIndex;
+        }
+
+        averageNumberOfRecords += totalRecords;
+    }
+    printf("%.2f is the average number of Secondary Records per Bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalSecondaryBuckets));
+    printf("Bucket %d has the least number of %d Secondary Record(s)\n", leastRecordsIndex, leastRecords);
+    printf("Bucket %d has the maximum number of %d Secondary Record(s)\n", mostRecordsIndex, mostRecords);
+
+
+    /* Υπολογισμός των overflow Blocks ανα Bucket */
+    int totalBucketsWithOverflow = 0;
+    for (int bucketIndex = 0; bucketIndex < info->totalSecondaryBuckets; ++bucketIndex)
+        if (bucketBlocks[bucketIndex] > 1) {
+            totalBucketsWithOverflow += 1;
+            printf("Bucket %d has %d overflow Block(s)\n", bucketIndex, bucketBlocks[bucketIndex] - 1);
+        }
+    printf("Overflow occurs in %d Bucket(s)\n", totalBucketsWithOverflow);
+
+
+    BF_Block_Destroy(&block);
+
+    int code = SHT_CloseSecondaryIndex(info);
+
+    if (code != SHT_OK)
+        return SHT_ERROR;
+
+    return SHT_OK;
+}
+
+int completeSecondaryHashFile(SHT_info *sht_info) {
+
+
+    int fileDescriptor = sht_info->fileDescriptor;
+    int totalBuckets = sht_info->totalSecondaryBuckets;
+    int maxRecords = sht_info->maxSecondaryRecords;
+    int totalBlocks = sht_info->totalSecondaryBlocks;
+
+    printf("##########\n");
+    printf("Complete Secondary Hash File\n");
+    printf("Max Secondary Records per Block : %d\n", maxRecords);
+    printf("Total Blocks of Hash File : %d\n", totalBlocks);
+
+    BF_Block *block;
+    char *blockData;
+    SHT_block_info bucketMetadata;
+    SecondaryRecord secondaryRecord;
+
+    BF_Block_Init(&block);
+
+    for (int bucketIndex = 0; bucketIndex < totalBuckets; ++bucketIndex) {
+
+        int blockIndex = sht_info->bucketToBlock[bucketIndex];
+
+        /* Το allocation των Buckets του Secondary Hash File γίνεται on demand */
+        if (blockIndex == NONE) {
+            printf("##########\n");
+            printf("Bucket %d has 0 Blocks\n", bucketIndex);
+            printf("Bucket %d has 0 overflow Blocks\n", bucketIndex);
+            printf("Bucket %d has 0 Secondary Records\n", bucketIndex);
+            printf("##########\n\n");
+        }
+
+        else {
+
+            bool keepLooking = true;
+            bool printMetadata = true;
+
+            while (keepLooking) {
+
+                /* Ανάκτηση του κατάλληλου Block */
+                VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+                blockData = BF_Block_GetData(block);
+
+                /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή SHT_block_info bucketMetadata */
+                memcpy(&bucketMetadata, blockData, sizeof(SHT_block_info));
+
+                /* Εκτύπωση των μεταδεδομένων του τελευταίου μόνο Block του εκάστοτε Bucket */
+                if (printMetadata) {
+                    printf("##########\n");
+                    printf("Bucket %d has %d Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar);
+                    printf("Bucket %d has %d overflow Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar - 1);
+                    printf("Bucket %d has %d Secondary Records\n", bucketIndex, bucketMetadata.bucketRecordsSoFar);
+                    printMetadata = false;
+                }
+
+                printf("\n\nBlock %d Secondary Records :\n", blockIndex);
+                for (int i = 0; i < bucketMetadata.totalSecondaryRecords; ++i) {
+                    memcpy(&secondaryRecord, blockData + sizeof(SHT_block_info) + (i * sizeof(SecondaryRecord)), sizeof(SecondaryRecord));
+                    printSecondaryRecord(secondaryRecord);
+                }
+
+                VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
+
+                /* Ανάκτηση του Index του προηγούμενου Block */
+                blockIndex = bucketMetadata.previousBlock;
+                if (blockIndex == NONE)
+                    keepLooking = false;
+
+            }
+
+            printf("##########\n\n");
+        }
+
+
+    }
+
+
+    BF_Block_Destroy(&block);
 
 
     return SHT_OK;

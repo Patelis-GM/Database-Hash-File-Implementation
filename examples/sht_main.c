@@ -6,7 +6,7 @@
 #include "ht_table.h"
 #include "sht_table.h"
 
-#define RECORDS_NUM 30
+#define RECORDS_NUM 5
 #define FILE_NAME "data.db"
 #define INDEX_NAME "index.db"
 
@@ -16,11 +16,20 @@ int main() {
     srand(time(NULL));
     BF_Init(LRU);
 
-    HT_CreateFile(FILE_NAME, 10);
-    SHT_CreateSecondaryIndex(INDEX_NAME, 10, FILE_NAME);
+    HT_CreateFile(FILE_NAME, 6);
+    SHT_CreateSecondaryIndex(INDEX_NAME, 5, FILE_NAME);
 
     HT_info *info = HT_OpenFile(FILE_NAME);
+    if (info == NULL) {
+        BF_Close();
+        exit(1);
+    }
+
     SHT_info *index_info = SHT_OpenSecondaryIndex(INDEX_NAME);
+    if (index_info == NULL) {
+        BF_Close();
+        exit(1);
+    }
 
     Record record = randomRecord();
     char searchName[15];
@@ -28,6 +37,9 @@ int main() {
 
 
     for (int id = 0; id < RECORDS_NUM; ++id) {
+
+        record = randomRecord();
+        record.id = rand() % 20;
 
         InsertPosition insertPosition = HT_InsertEntry(info, record);
         if (insertPosition.recordIndex == HT_ERROR || insertPosition.blockIndex == HT_ERROR) {
@@ -49,7 +61,7 @@ int main() {
 
         printf("----------\n");
         printf("Inserted Secondary Record with Bucket Index %d\n", hash(record.name) % index_info->totalSecondaryBuckets);
-        printSecondaryRecord(secondaryRecordFromRecord(record));
+        printSecondaryRecord(secondaryRecordFromRecord(record, insertPosition.blockIndex, insertPosition.recordIndex));
         printf("in Block %d\n", secondaryBlockIndex);
 
 
@@ -67,6 +79,21 @@ int main() {
 
 
     int status;
+
+
+    status = completePrimaryHashFile(info);
+    if (status == HT_ERROR) {
+        BF_Close();
+        exit(1);
+    }
+
+
+    status = completeSecondaryHashFile(index_info);
+    if (status == SHT_ERROR) {
+        BF_Close();
+        exit(1);
+    }
+
 
     status = SHT_CloseSecondaryIndex(index_info);
     if (status == SHT_ERROR) {

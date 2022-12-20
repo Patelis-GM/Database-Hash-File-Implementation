@@ -108,4 +108,6 @@ unsigned int hash(const char* field);
 
 int secondaryHashStatistics(char *filename);
 
+int completeSecondaryHashFile(SHT_info *sht_info);
+
 #endif // SHT_FILE_H
