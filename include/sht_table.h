@@ -16,9 +16,22 @@
 /* Identifier του Secondary Hash File */
 #define SECONDARY_HASH_FILE_IDENTIFIER 'S'
 
+
+/* Μέγιστος αριθμός απο Buckets που μπορεί να έχει ο πίνακας κατακερματισμού
+ * Η δομή SHT_info περιέχει τα παρακάτω στοιχεία :
+ *
+ * # int maxSecondaryRecords
+ * # int totalSecondaryBuckets
+ * # int totalSecondaryBlocks
+ * # int totalSecondaryRecords
+ * # int fileDescriptor
+ *
+ *  Ενω στην αρχή του 1ου Block του Secondary Hash File βρίσκεται ο char SECONDARY_HASH_FILE_IDENTIFIER.
+ *  Συνεπώς, ο μέγιστος αριθμός απο Buckets που μπορεί να έχει ο πίνακας κατακερματισμού έτσι ώστε η συνολική δομή SHT_info να χωράει στο 1ο Block του Secondary Hash File δίνεται απο τον παρακάτω τύπο.
+ *  Διαίρεση με το 2 για να είμαστε απόλυτα σίγουροι οτι η συνολική δομή SHT_info θα χωράει στο 1ο Block του Secondary Hash File και θα μπορούμε μελλοντικά να προσθέσουμε επιπλέον μεταδεδομένα  */
 #define MAX_SECONDARY_BUCKETS (((BF_BLOCK_SIZE  - (5 * sizeof(int)) - sizeof(char)) / sizeof(int)) / 2)
 
-/* Μέγιστος αριθμός Records ανα Block */
+/* Μέγιστος αριθμός Secondary Records ανα Block του Secondary Hash File */
 #define MAX_SECONDARY_RECORDS ((BF_BLOCK_SIZE - sizeof(SHT_block_info)) / sizeof(SecondaryRecord))
 
 typedef struct {
@@ -33,6 +46,8 @@ typedef struct {
 bool SHT_areDifferent(SHT_info* shtInfo, SHT_info* anotherShtInfo);
 
 typedef struct {
+    int bucketBlocksSoFar;
+    int bucketRecordsSoFar;
     int previousBlock;
     int totalSecondaryRecords;
 } SHT_block_info;
@@ -88,9 +103,7 @@ int SHT_SecondaryGetAllEntries(
         char *name /* το όνομα στο οποίο γίνεται αναζήτηση */);
 
 
-
-
-unsigned int hash(SecondaryRecord *secondaryRecord);
+unsigned int hash(const char* field);
 
 
 int secondaryHashStatistics(char *filename);

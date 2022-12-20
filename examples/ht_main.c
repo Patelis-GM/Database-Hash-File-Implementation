@@ -30,27 +30,56 @@ int main() {
     HT_info *info = HT_OpenFile(FILE_NAME);
     if (info == NULL) {
         BF_Close();
-        return 1;
+        exit(1);
     }
 
     Record record;
     srand(time(NULL));
 
     for (int id = 0; id < RECORDS_NUM; ++id) {
+
         record = randomRecord();
+
         InsertPosition insertPosition = HT_InsertEntry(info, record);
-        if (insertPosition.blockIndex == HT_ERROR || insertPosition.recordIndex == HT_ERROR)
-            return 1;
+        if (insertPosition.recordIndex == HT_ERROR || insertPosition.blockIndex == HT_ERROR) {
+            BF_Close();
+            exit(1);
+        }
+
+        printf("##########\n");
+        printf("Inserted Record with Bucket Index %d\n", record.id % info->totalBuckets);
+        printRecord(record);
+        printf("in Block %d\n", insertPosition.blockIndex);
+        printf("##########\n\n");
     }
 
     int value = rand() % RECORDS_NUM;
     printf("Looking for value %d\n", value);
+
     int blocksRequested = HT_GetAllEntries(info, value);
-    printf("%d blocks requested for value %d\n", blocksRequested, value);
+    if (blocksRequested == HT_ERROR) {
+        BF_Close();
+        exit(1);
+    }
 
-    HT_CloseFile(info);
+    printf("%d Block(s) requested for value %d\n", blocksRequested, value);
 
-    primaryHashStatistics(FILE_NAME);
+
+    /* Προαιρετικά */
+    int status = completeHashFile(info);
+    if (status == HT_ERROR) {
+        BF_Close();
+        exit(1);
+    }
+
+    status = HT_CloseFile(info);
+    if (status == HT_ERROR) {
+        BF_Close();
+        exit(1);
+    }
+
 
     BF_Close();
+
+    return 0;
 }

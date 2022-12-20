@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #include "bf.h"
 #include "ht_table.h"
 #include "record.h"
@@ -47,12 +46,12 @@ int HT_CreateFile(char *fileName, int buckets) {
         return HT_ERROR;
     }
 
-    /* Δημιουργία Hash File */
+    /* Δημιουργία Primary Hash File */
     VALUE_CALL_OR_DIE(BF_CreateFile(fileName))
 
     int fileDescriptor;
 
-    /* Άνοιγμα Hash File */
+    /* Άνοιγμα Primary Hash File */
     VALUE_CALL_OR_DIE(BF_OpenFile(fileName, &fileDescriptor))
 
     BF_Block *block;
@@ -61,7 +60,7 @@ int HT_CreateFile(char *fileName, int buckets) {
 
     char hashFileIdentifier = HASH_FILE_IDENTIFIER;
 
-    /* Δημιουργία και αρχικοποίηση μιας δομής HT_info που θα αντιγραφεί στο 1ο Block του Hash File */
+    /* Δημιουργία και αρχικοποίηση μιας δομής HT_info που θα αντιγραφεί στο 1ο Block του Primary Hash File */
     HT_info headerMetadata;
     headerMetadata.maxRecords = MAX_RECORDS;
     headerMetadata.totalBuckets = buckets;
@@ -69,7 +68,7 @@ int HT_CreateFile(char *fileName, int buckets) {
     headerMetadata.totalBlocks = 1;
     headerMetadata.fileDescriptor = fileDescriptor;
 
-    /* Τα Buckets του Hash File γίνονται allocate on demand.
+    /* Τα Buckets του Primary Hash File γίνονται allocate on demand.
      * Ενημέρωσή του πίνακα κατακερματισμού ως εξής :
      *
      * (1) Bucket 0 -> Block - NONE
@@ -210,7 +209,9 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
 
     /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Bucket Index */
     int blockIndex = ht_info->bucketToBlock[bucketIndex];
-    int recordIndex;
+
+
+    int recordIndex = -1;
 
     int fileDescriptor = ht_info->fileDescriptor;
 
@@ -223,6 +224,8 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
     if (blockIndex == NONE) {
 
         /* Μεταδεδομένα του Block που πρόκειται να γίνει allocate και θα αντιγραφούν σε αυτό */
+        bucketMetadata.bucketBlocksSoFar = 1;
+        bucketMetadata.bucketRecordsSoFar = 1;
         bucketMetadata.totalRecords = 1;
         bucketMetadata.previousBlock = NONE;
 
@@ -246,6 +249,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
         ht_info->totalBlocks += 1;
 
         blockIndex = ht_info->bucketToBlock[bucketIndex];
+
         recordIndex = 0;
     }
 
@@ -264,17 +268,20 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
         /* Το εκάστοτε Block που ανακτήθηκε έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
         if (bucketMetadata.totalRecords < ht_info->maxRecords) {
 
+            recordIndex = bucketMetadata.totalRecords;
+
             /* Αντιγραφή του εκάστοτε Record στην κατάλληλη θέση του Block */
             memcpy(blockData + sizeof(HT_block_info) + (bucketMetadata.totalRecords * sizeof(Record)), &record,
                    sizeof(Record));
 
             /* Ενημέρωση των μεταδεδομένων του Block και αντιγραφή αυτών στο τελευταίο */
             bucketMetadata.totalRecords += 1;
+            bucketMetadata.bucketRecordsSoFar += 1;
             memcpy(blockData, &bucketMetadata, sizeof(HT_block_info));
 
             BF_Block_SetDirty(block);
             INSERT_CALL_OR_DIE(BF_UnpinBlock(block))
-            recordIndex = bucketMetadata.totalRecords - 1;
+
         }
 
             /* Το εκάστοτε Block που ανακτήθηκε δεν έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
@@ -289,6 +296,9 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
              */
             int previousBlock = blockIndex;
             int nextBlock = ht_info->totalBlocks;
+            int bucketRecordsSoFar = bucketMetadata.bucketRecordsSoFar;
+            int bucketBlocksSoFar = bucketMetadata.bucketBlocksSoFar;
+
 
             /* Αποδέσμευση του τωρινού Block */
             INSERT_CALL_OR_DIE(BF_UnpinBlock(block))
@@ -296,6 +306,9 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
             /* Αρχικοποίηση των μεταδεδομένων του Block που θα γίνει allocate */
             bucketMetadata.totalRecords = 1;
             bucketMetadata.previousBlock = previousBlock;
+            bucketMetadata.bucketRecordsSoFar = bucketRecordsSoFar + 1;
+            bucketMetadata.bucketBlocksSoFar = bucketBlocksSoFar + 1;
+
 
             /* Allocation του Block */
             INSERT_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
@@ -319,6 +332,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
             ht_info->bucketToBlock[bucketIndex] = nextBlock;
 
             blockIndex = nextBlock;
+
             recordIndex = 0;
         }
 
@@ -405,7 +419,7 @@ int primaryHashStatistics(char *filename) {
     if (info == NULL)
         return HT_ERROR;
 
-    printf("Total blocks of Hash File : %d\n", info->totalBlocks);
+    printf("Total Blocks of Primary Hash File : %d\n", info->totalBlocks);
 
     int bucketBlocks[info->totalBuckets];
     int bucketRecords[info->totalBuckets];
@@ -427,31 +441,20 @@ int primaryHashStatistics(char *filename) {
 
         else {
 
-            bool keepLooking = true;
-            int totalRecords = 0;
-            int totalBlocks = 0;
+            int totalRecords;
+            int totalBlocks;
 
-            while (keepLooking) {
+            /* Ανάκτηση του κατάλληλου Block */
+            VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
+            blockData = BF_Block_GetData(block);
 
-                /* Ανάκτηση του κατάλληλου Block */
-                VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, blockIndex, block))
-                blockData = BF_Block_GetData(block);
+            /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */
+            memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
 
-                /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή HT_block_info bucketMetadata */
-                memcpy(&bucketMetadata, blockData, sizeof(HT_block_info));
-                totalBlocks += 1;
-                totalRecords += bucketMetadata.totalRecords;
+            totalBlocks = bucketMetadata.bucketBlocksSoFar;
+            totalRecords = bucketMetadata.bucketRecordsSoFar;
 
-                VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
-
-                /* Ανάκτηση του Index του προηγούμενου Block */
-                blockIndex = bucketMetadata.previousBlock;
-
-                if (blockIndex == NONE)
-                    keepLooking = false;
-
-            }
-
+            VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
             bucketBlocks[bucketIndex] = totalBlocks;
             bucketRecords[bucketIndex] = totalRecords;
@@ -460,11 +463,11 @@ int primaryHashStatistics(char *filename) {
 
     }
 
-
+    /* Υπολογισμός του μέσου αριθμού των Blocks ανα Bucket */
     int averageNumberOfBlocks = 0;
     for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex)
         averageNumberOfBlocks += bucketBlocks[bucketIndex];
-    printf("%.2f is the average number of blocks per bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalBuckets));
+    printf("%.2f is the average number of Blocks per Bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalBuckets));
 
 
     int mostRecords = INT_MIN;
@@ -473,10 +476,15 @@ int primaryHashStatistics(char *filename) {
     int leastRecordsIndex;
     int averageNumberOfRecords = 0;
 
+    /* Υπολογισμός των παρακάτω :
+     *
+     * # Μέσος αριθμός Records ανα Bucket
+     * # Bucket με τον ελάχιστο αριθμό απο Records
+     * # Bucket με τον μέγιστο αριθμό απο Records */
     for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex) {
 
         int totalRecords = bucketRecords[bucketIndex];
-        printf("Bucket %d has %d record(s)\n", bucketIndex, totalRecords);
+        printf("Bucket %d has %d Record(s)\n", bucketIndex, totalRecords);
 
         if (totalRecords > mostRecords) {
             mostRecords = totalRecords;
@@ -490,18 +498,19 @@ int primaryHashStatistics(char *filename) {
 
         averageNumberOfRecords += totalRecords;
     }
-    printf("%.2f is the average number of records per bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalBuckets));
-    printf("Bucket %d has the least number of %d record(s)\n", leastRecordsIndex, leastRecords);
-    printf("Bucket %d has the maximum number of %d record(s)\n", mostRecordsIndex, mostRecords);
+    printf("%.2f is the average number of Records per Bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalBuckets));
+    printf("Bucket %d has the least number of %d Record(s)\n", leastRecordsIndex, leastRecords);
+    printf("Bucket %d has the maximum number of %d Record(s)\n", mostRecordsIndex, mostRecords);
 
 
+    /* Υπολογισμός των overflow Blocks ανα Bucket */
     int totalBucketsWithOverflow = 0;
     for (int bucketIndex = 0; bucketIndex < info->totalBuckets; ++bucketIndex)
         if (bucketBlocks[bucketIndex] > 1) {
             totalBucketsWithOverflow += 1;
-            printf("Bucket %d has %d overflow block(s)\n", bucketIndex, bucketBlocks[bucketIndex] - 1);
+            printf("Bucket %d has %d overflow Block(s)\n", bucketIndex, bucketBlocks[bucketIndex] - 1);
         }
-    printf("Overflow occurs in %d bucket(s)\n", totalBucketsWithOverflow);
+    printf("Overflow occurs in %d Bucket(s)\n", totalBucketsWithOverflow);
 
 
     BF_Block_Destroy(&block);

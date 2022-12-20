@@ -193,13 +193,13 @@ int SHT_CloseSecondaryIndex(SHT_info *shtInfo) {
 }
 
 
-unsigned int hash(SecondaryRecord *secondaryRecord) {
+unsigned int hash(const char *field) {
 
     int character;
     unsigned int hashValue = 5381;
 
-    for (int i = 0; i < strlen(secondaryRecord->name); ++i) {
-        character = secondaryRecord->name[i];
+    for (int i = 0; i < strlen(field); ++i) {
+        character = field[i];
         hashValue = ((hashValue << 5) + hashValue) + character;
     }
 
@@ -210,7 +210,7 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
 
     SecondaryRecord secondaryRecord = secondaryRecordFromRecord(record, insertPosition.blockIndex, insertPosition.recordIndex);
 
-    unsigned int hashValue = hash(&secondaryRecord);
+    unsigned int hashValue = hash(secondaryRecord.name);
     int bucketIndex = hashValue % sht_info->totalSecondaryBuckets;
     int blockIndex = sht_info->bucketToBlock[bucketIndex];
 
@@ -227,6 +227,8 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
         /* Μεταδεδομένα του Block που πρόκειται να γίνει allocate και θα αντιγραφούν σε αυτό */
         bucketMetadata.totalSecondaryRecords = 1;
         bucketMetadata.previousBlock = NONE;
+        bucketMetadata.bucketRecordsSoFar = 1;
+        bucketMetadata.bucketBlocksSoFar = 1;
 
         /* Allocation του Block */
         VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
@@ -261,15 +263,15 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
         /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή SHT_block_info bucketMetadata */
         memcpy(&bucketMetadata, blockData, sizeof(SHT_block_info));
 
-        /* Το εκάστοτε Block που ανακτήθηκε έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Record */
+        /* Το εκάστοτε Block που ανακτήθηκε έχει αρκετό χώρο για την εισαγωγή του εκάστοτε Secondary Record */
         if (bucketMetadata.totalSecondaryRecords < sht_info->maxSecondaryRecords) {
 
             /* Αντιγραφή του εκάστοτε Secondary Record στην κατάλληλη θέση του Block */
-            memcpy(blockData + sizeof(SHT_block_info) + (bucketMetadata.totalSecondaryRecords * sizeof(SecondaryRecord)), &secondaryRecord,
-                   sizeof(SecondaryRecord));
+            memcpy(blockData + sizeof(SHT_block_info) + (bucketMetadata.totalSecondaryRecords * sizeof(SecondaryRecord)), &secondaryRecord, sizeof(SecondaryRecord));
 
             /* Ενημέρωση των μεταδεδομένων του Block και αντιγραφή αυτών στο τελευταίο */
             bucketMetadata.totalSecondaryRecords += 1;
+            bucketMetadata.bucketRecordsSoFar += 1;
             memcpy(blockData, &bucketMetadata, sizeof(SHT_block_info));
 
             BF_Block_SetDirty(block);
@@ -288,6 +290,8 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
              */
             int previousBlock = blockIndex;
             int nextBlock = sht_info->totalSecondaryBlocks;
+            int blocksSoFar = bucketMetadata.bucketBlocksSoFar;
+            int recordsSoFar = bucketMetadata.bucketRecordsSoFar;
 
             /* Αποδέσμευση του τωρινού Block */
             VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
@@ -295,6 +299,8 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
             /* Αρχικοποίηση των μεταδεδομένων του Block που θα γίνει allocate */
             bucketMetadata.totalSecondaryRecords = 1;
             bucketMetadata.previousBlock = previousBlock;
+            bucketMetadata.bucketBlocksSoFar = blocksSoFar + 1;
+            bucketMetadata.bucketRecordsSoFar = recordsSoFar + 1;
 
             /* Allocation του Block */
             VALUE_CALL_OR_DIE(BF_AllocateBlock(fileDescriptor, block))
@@ -330,7 +336,83 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
 
 int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name) {
 
-    return SHT_OK;
+
+    int blocksRequested = 0;
+    int hashValue = hash(name);
+    int secondaryBucketIndex = hashValue % sht_info->totalSecondaryBuckets;
+    int secondaryBlockIndex = sht_info->bucketToBlock[secondaryBucketIndex];
+
+
+    Record record;
+    BF_Block *primaryBlock;
+    char *primaryBlockData;
+    int primaryFileDescriptor = ht_info->fileDescriptor;
+
+    SecondaryRecord secondaryRecord;
+    BF_Block *secondaryBlock;
+    char *secondaryBlockData;
+    SHT_block_info bucketMetadata;
+    int secondaryFileDescriptor = sht_info->fileDescriptor;
+
+    BF_Block_Init(&primaryBlock);
+    BF_Block_Init(&secondaryBlock);
+
+    bool keepLooking = true;
+    bool foundValue = false;
+
+    /* Εφόσον το allocation των Buckets του Secondary Hash File γίνεται on demand γνωρίζουμε εκ των προτέρων οτι το εκάστοτε Name δε βρίσκεται στο Secondary Hash - File */
+    if (secondaryBlockIndex == NONE)
+        keepLooking = false;
+
+    while (keepLooking) {
+
+        /* Ανάκτηση του κατάλληλου Block στο πλαίσιο του Secondary Hash File*/
+        VALUE_CALL_OR_DIE(BF_GetBlock(secondaryFileDescriptor, secondaryBlockIndex, secondaryBlock))
+        blocksRequested += 1;
+
+        /* Αντιγραφή των μεταδεδομένων του Block στην proxy δομή SHT_block_info bucketMetadata */
+        secondaryBlockData = BF_Block_GetData(secondaryBlock);
+        memcpy(&bucketMetadata, secondaryBlockData, sizeof(SHT_block_info));
+
+
+        /* Δεδομένου του Block που ανακτήθηκε ελέγχονται ολα τα Secondary Records εντός αυτού */
+        for (int i = 0; i < bucketMetadata.totalSecondaryRecords; ++i) {
+
+            memcpy(&secondaryRecord, secondaryBlockData + sizeof(SHT_block_info) + (i * sizeof(SecondaryRecord)), sizeof(SecondaryRecord));
+
+            if (strcmp(secondaryRecord.name, name) == 0) {
+                foundValue = true;
+
+                /* Ανάκτηση του κατάλληλου Block στο πλαίσιο του Primary Hash File που υποδεικνύεται απο το Block Index του Secondary Record */
+                VALUE_CALL_OR_DIE(BF_GetBlock(primaryFileDescriptor, secondaryRecord.blockIndex, primaryBlock))
+                blocksRequested += 1;
+
+                /* Ανάκτηση του καταλλήλου Record */
+                primaryBlockData = BF_Block_GetData(primaryBlock);
+                memcpy(&record, primaryBlockData + sizeof(HT_block_info) + (secondaryRecord.recordIndex * sizeof(Record)), sizeof(Record));
+
+                printRecord(record);
+
+                VALUE_CALL_OR_DIE(BF_UnpinBlock(primaryBlock));
+            }
+        }
+
+
+        VALUE_CALL_OR_DIE(BF_UnpinBlock(secondaryBlock))
+
+        /* Ανάκτηση του προηγούμενου overflow Block στο πλαίσιο του Secondary Hash File αν αυτό υπάρχει */
+        secondaryBlockIndex = bucketMetadata.previousBlock;
+        if (secondaryBlockIndex == NONE)
+            keepLooking = false;
+    }
+
+
+    if (!foundValue)
+        printf("Could not find name %s\n", name);
+
+    BF_Block_Destroy(&primaryBlock);
+    BF_Block_Destroy(&secondaryBlock);
+    return blocksRequested;
 }
 
 int secondaryHashStatistics(char *filename) {

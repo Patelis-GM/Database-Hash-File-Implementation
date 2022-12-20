@@ -45,6 +45,8 @@ typedef struct {
 bool HT_areDifferent(HT_info *htInfo, HT_info *anotherHtInfo);
 
 typedef struct {
+    int bucketBlocksSoFar;
+    int bucketRecordsSoFar;
     int totalRecords;
     int previousBlock;
 } HT_block_info;
@@ -88,18 +90,19 @@ int HT_CloseFile(HT_info *ht_info);
 δομή header_info, ενώ η εγγραφή προς εισαγωγή προσδιορίζεται από τη δομή record.
 Σε περίπτωση που εκτελεστεί επιτυχώς, επιστρέφετε τον αριθμό του block στο οποίο
 έγινε η εισαγωγή (blockId), ενώ σε διαφορετική περίπτωση -1.*/
-InsertPosition HT_InsertEntry(HT_info *header_info, /*επικεφαλίδα του αρχείου*/
-                   Record record /*δομή που προσδιορίζει την εγγραφή*/);
+InsertPosition HT_InsertEntry(HT_info *header_info, /*επικεφαλίδα του αρχείου*/ Record record /*δομή που προσδιορίζει την εγγραφή*/);
 
 /* Η συνάρτηση αυτή χρησιμοποιείται για την εκτύπωση όλων των εγγραφών που υπάρχουν
 στο αρχείο κατακερματισμού οι οποίες έχουν τιμή στο πεδίο-κλειδί ίση με value.
 Η πρώτη δομή δίνει πληροφορία για το αρχείο κατακερματισμού, όπως αυτή είχε επιστραφεί
 από τη HT_OpenIndex. Για κάθε εγγραφή που υπάρχει στο αρχείο και έχει τιμή στο πεδίο-κλειδί
 (όπως αυτό ορίζεται στη HT_info) ίση με value, εκτυπώνονται τα περιεχόμενά της (συμπεριλαμβανομένου και του πεδίου-κλειδιού). Να επιστρέφεται επίσης το πλήθος των blocks που διαβάστηκαν μέχρι να βρεθούν όλες οι εγγραφές. Σε περίπτωση επιτυχίας επιστρέφει το πλήθος των blocks που διαβάστηκαν, ενώ σε περίπτωση λάθους επιστρέφει -1.*/
-int HT_GetAllEntries(HT_info *header_info, /*επικεφαλίδα του αρχείου*/
-                     int id /*τιμή του πεδίου-κλειδιού προς αναζήτηση*/);
+int HT_GetAllEntries(HT_info *header_info, /*επικεφαλίδα του αρχείου*/ int id /*τιμή του πεδίου-κλειδιού προς αναζήτηση*/);
 
 int primaryHashStatistics(char *filename /* όνομα του αρχείου που ενδιαφέρει */ );
+
+/* Βοηθητική συνάρτηση για την εκτύπωση των περισσοτέρων πληροφοριών του Hash - File */
+int completeHashFile(HT_info *ht_info);
 
 
 #endif // HT_FILE_H
