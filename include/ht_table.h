@@ -14,7 +14,7 @@
 #define HEADER_BLOCK 0
 
 /* Identifier του Hash File */
-#define HASH_FILE_IDENTIFIER 'T'
+#define HASH_FILE_IDENTIFIER 'G'
 
 /* Μέγιστος αριθμός απο Buckets που μπορεί να έχει ο πίνακας κατακερματισμού
  * Η δομή HT_info περιέχει τα παρακάτω στοιχεία :
@@ -45,10 +45,10 @@ typedef struct {
 bool HT_areDifferent(HT_info *htInfo, HT_info *anotherHtInfo);
 
 typedef struct {
-    int bucketBlocksSoFar;
-    int bucketRecordsSoFar;
     int totalRecords;
     int previousBlock;
+    int bucketBlocksSoFar;
+    int bucketRecordsSoFar;
 } HT_block_info;
 
 

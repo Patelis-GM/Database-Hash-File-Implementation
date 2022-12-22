@@ -66,7 +66,7 @@ int HT_CreateFile(char *fileName, int buckets) {
     headerMetadata.totalBuckets = buckets;
     headerMetadata.totalRecords = 0;
     headerMetadata.totalBlocks = 1;
-    headerMetadata.fileDescriptor = fileDescriptor;
+    headerMetadata.fileDescriptor = NONE;
 
     /* Τα Buckets του Primary Hash File γίνονται allocate on demand.
      * Ενημέρωσή του πίνακα κατακερματισμού ως εξής :
@@ -108,8 +108,6 @@ HT_info *HT_OpenFile(char *fileName) {
 
     int fileDescriptor;
     POINTER_CALL_OR_DIE(BF_OpenFile(fileName, &fileDescriptor))
-
-
     BF_Block *block;
     BF_Block_Init(&block);
 
@@ -139,12 +137,15 @@ HT_info *HT_OpenFile(char *fileName) {
     /* Αντιγραφή των μεταδεδομένων του 1ου Block στη δομή HT_info */
     HT_info *headerMetadata = (HT_info *) malloc(sizeof(HT_info));
     memcpy(headerMetadata, blockData + sizeof(char), sizeof(HT_info));
+    headerMetadata->fileDescriptor = fileDescriptor;
 
     /* Unpin του 1ου Block */
     POINTER_CALL_OR_DIE(BF_UnpinBlock(block))
 
     /* Αποδέσμευση του BF_Block */
     BF_Block_Destroy(&block);
+
+
     return headerMetadata;
 }
 
@@ -209,9 +210,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
 
     /* Ανάκτηση του Block Index στο οποίο αντιστοιχεί το εκάστοτε Bucket Index */
     int blockIndex = ht_info->bucketToBlock[bucketIndex];
-
-
-    int recordIndex = -1;
+    int recordIndex;
 
     int fileDescriptor = ht_info->fileDescriptor;
 
@@ -344,11 +343,11 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
 
     BF_Block_Destroy(&block);
 
-    InsertPosition insertPosition;
-    insertPosition.blockIndex = blockIndex;
-    insertPosition.recordIndex = recordIndex;
+    InsertPosition position;
+    position.blockIndex = blockIndex;
+    position.recordIndex = recordIndex;
 
-    return insertPosition;
+    return position;
 }
 
 int HT_GetAllEntries(HT_info *ht_info, int value) {

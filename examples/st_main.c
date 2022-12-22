@@ -19,6 +19,7 @@ int main() {
         exit(1);
     }
 
+    printf("##########\n");
 
     printf("Secondary Hash File Statistics :\n");
     status = secondaryHashStatistics(INDEX_NAME);

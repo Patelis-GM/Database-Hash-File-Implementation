@@ -64,7 +64,7 @@ Record randomRecord() {
 
 SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex, int recordIndex) {
     SecondaryRecord secondaryRecord;
-    memcpy(secondaryRecord.name, record.name, strlen(record.name) + 1);
+    strcpy(secondaryRecord.name, record.name);
     secondaryRecord.blockIndex = blockIndex;
     secondaryRecord.recordIndex = recordIndex;
     return secondaryRecord;

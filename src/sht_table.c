@@ -55,7 +55,7 @@ int SHT_CreateSecondaryIndex(char *sfileName, int buckets, char *fileName) {
     headerMetadata.totalSecondaryBuckets = buckets;
     headerMetadata.totalSecondaryRecords = 0;
     headerMetadata.totalSecondaryBlocks = 1;
-    headerMetadata.fileDescriptor = fileDescriptor;
+    headerMetadata.fileDescriptor = NONE;
 
     /* Τα Buckets του Secondary Hash File γίνονται allocate on demand.
      * Ενημέρωσή του πίνακα κατακερματισμού ως εξής :
@@ -129,19 +129,22 @@ SHT_info *SHT_OpenSecondaryIndex(char *indexName) {
     /* Αντιγραφή των μεταδεδομένων του 1ου Block στη δομή SHT_info */
     SHT_info *headerMetadata = (SHT_info *) malloc(sizeof(SHT_info));
     memcpy(headerMetadata, blockData + sizeof(char), sizeof(SHT_info));
+    headerMetadata->fileDescriptor = fileDescriptor;
 
     /* Unpin του 1ου Block */
     POINTER_CALL_OR_DIE(BF_UnpinBlock(block))
 
     /* Αποδέσμευση του BF_Block */
     BF_Block_Destroy(&block);
+
     return headerMetadata;
 }
 
 /* Βοηθητική συνάρτηση για να κριθεί αν δυο δομές SHT_info διαφέρουν μεταξύ τους */
 bool SHT_areDifferent(SHT_info *shtInfo, SHT_info *anotherShtInfo) {
 
-    if (shtInfo->totalSecondaryBlocks != anotherShtInfo->totalSecondaryBlocks || shtInfo->totalSecondaryRecords != anotherShtInfo->totalSecondaryRecords)
+    if (shtInfo->totalSecondaryBlocks != anotherShtInfo->totalSecondaryBlocks ||
+        shtInfo->totalSecondaryRecords != anotherShtInfo->totalSecondaryRecords)
         return true;
 
     for (int i = 0; i < MAX_SECONDARY_BUCKETS; ++i)
@@ -208,7 +211,8 @@ unsigned int hash(const char *field) {
 
 int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition insertPosition) {
 
-    SecondaryRecord secondaryRecord = secondaryRecordFromRecord(record, insertPosition.blockIndex, insertPosition.recordIndex);
+    SecondaryRecord secondaryRecord = secondaryRecordFromRecord(record, insertPosition.blockIndex,
+                                                                insertPosition.recordIndex);
 
     unsigned int hashValue = hash(secondaryRecord.name);
     int bucketIndex = hashValue % sht_info->totalSecondaryBuckets;
@@ -267,7 +271,9 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
         if (bucketMetadata.totalSecondaryRecords < sht_info->maxSecondaryRecords) {
 
             /* Αντιγραφή του εκάστοτε Secondary Record στην κατάλληλη θέση του Block */
-            memcpy(blockData + sizeof(SHT_block_info) + (bucketMetadata.totalSecondaryRecords * sizeof(SecondaryRecord)), &secondaryRecord, sizeof(SecondaryRecord));
+            memcpy(blockData + sizeof(SHT_block_info) +
+                   (bucketMetadata.totalSecondaryRecords * sizeof(SecondaryRecord)), &secondaryRecord,
+                   sizeof(SecondaryRecord));
 
             /* Ενημέρωση των μεταδεδομένων του Block και αντιγραφή αυτών στο τελευταίο */
             bucketMetadata.totalSecondaryRecords += 1;
@@ -338,10 +344,9 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
 
 
     int blocksRequested = 0;
-    int hashValue = hash(name);
+    unsigned int hashValue = hash(name);
     int secondaryBucketIndex = hashValue % sht_info->totalSecondaryBuckets;
     int secondaryBlockIndex = sht_info->bucketToBlock[secondaryBucketIndex];
-
 
     Record record;
     BF_Block *primaryBlock;
@@ -353,6 +358,17 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
     char *secondaryBlockData;
     SHT_block_info bucketMetadata;
     int secondaryFileDescriptor = sht_info->fileDescriptor;
+
+
+    printf("Will look in Bucket %d for name %s\n", secondaryBucketIndex, name);
+
+//    printf("Hash Value : %d\n", hashValue);
+//    printf("Bucket index : %d\n", secondaryBucketIndex);
+//    printf("Block index : %d\n", secondaryBlockIndex);
+//    for (int i = 0; i < sht_info->totalSecondaryBuckets + 4; ++i) {
+//        printf("Bucket %d goes to Block %d\n", i, sht_info->bucketToBlock[i]);
+//    }
+
 
     BF_Block_Init(&primaryBlock);
     BF_Block_Init(&secondaryBlock);
@@ -366,6 +382,7 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
 
     while (keepLooking) {
 
+
         /* Ανάκτηση του κατάλληλου Block στο πλαίσιο του Secondary Hash File*/
         VALUE_CALL_OR_DIE(BF_GetBlock(secondaryFileDescriptor, secondaryBlockIndex, secondaryBlock))
         blocksRequested += 1;
@@ -378,7 +395,8 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
         /* Δεδομένου του Block που ανακτήθηκε ελέγχονται ολα τα Secondary Records εντός αυτού */
         for (int i = 0; i < bucketMetadata.totalSecondaryRecords; ++i) {
 
-            memcpy(&secondaryRecord, secondaryBlockData + sizeof(SHT_block_info) + (i * sizeof(SecondaryRecord)), sizeof(SecondaryRecord));
+            memcpy(&secondaryRecord, secondaryBlockData + sizeof(SHT_block_info) + (i * sizeof(SecondaryRecord)),
+                   sizeof(SecondaryRecord));
 
             if (strcmp(secondaryRecord.name, name) == 0) {
                 foundValue = true;
@@ -389,7 +407,9 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
 
                 /* Ανάκτηση του καταλλήλου Record */
                 primaryBlockData = BF_Block_GetData(primaryBlock);
-                memcpy(&record, primaryBlockData + sizeof(HT_block_info) + (secondaryRecord.recordIndex * sizeof(Record)), sizeof(Record));
+                memcpy(&record,
+                       primaryBlockData + sizeof(HT_block_info) + (secondaryRecord.recordIndex * sizeof(Record)),
+                       sizeof(Record));
 
                 printRecord(record);
 
@@ -397,13 +417,12 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
             }
         }
 
-
-        VALUE_CALL_OR_DIE(BF_UnpinBlock(secondaryBlock))
-
         /* Ανάκτηση του προηγούμενου overflow Block στο πλαίσιο του Secondary Hash File αν αυτό υπάρχει */
         secondaryBlockIndex = bucketMetadata.previousBlock;
         if (secondaryBlockIndex == NONE)
             keepLooking = false;
+
+        VALUE_CALL_OR_DIE(BF_UnpinBlock(secondaryBlock))
     }
 
 
@@ -440,9 +459,7 @@ int secondaryHashStatistics(char *filename) {
         if (blockIndex == NONE) {
             bucketBlocks[bucketIndex] = 0;
             bucketRecords[bucketIndex] = 0;
-        }
-
-        else {
+        } else {
 
             int totalRecords;
             int totalBlocks;
@@ -470,7 +487,8 @@ int secondaryHashStatistics(char *filename) {
     int averageNumberOfBlocks = 0;
     for (int bucketIndex = 0; bucketIndex < info->totalSecondaryBuckets; ++bucketIndex)
         averageNumberOfBlocks += bucketBlocks[bucketIndex];
-    printf("%.2f is the average number of Blocks per Bucket\n", (float) ((float) averageNumberOfBlocks / (float) info->totalSecondaryBuckets));
+    printf("%.2f is the average number of Blocks per Bucket\n",
+           (float) ((float) averageNumberOfBlocks / (float) info->totalSecondaryBuckets));
 
 
     int mostRecords = INT_MIN;
@@ -501,7 +519,8 @@ int secondaryHashStatistics(char *filename) {
 
         averageNumberOfRecords += totalRecords;
     }
-    printf("%.2f is the average number of Secondary Records per Bucket\n", (float) ((float) averageNumberOfRecords / (float) info->totalSecondaryBuckets));
+    printf("%.2f is the average number of Secondary Records per Bucket\n",
+           (float) ((float) averageNumberOfRecords / (float) info->totalSecondaryBuckets));
     printf("Bucket %d has the least number of %d Secondary Record(s)\n", leastRecordsIndex, leastRecords);
     printf("Bucket %d has the maximum number of %d Secondary Record(s)\n", mostRecordsIndex, mostRecords);
 
@@ -557,9 +576,7 @@ int completeSecondaryHashFile(SHT_info *sht_info) {
             printf("Bucket %d has 0 overflow Blocks\n", bucketIndex);
             printf("Bucket %d has 0 Secondary Records\n", bucketIndex);
             printf("##########\n\n");
-        }
-
-        else {
+        } else {
 
             bool keepLooking = true;
             bool printMetadata = true;
@@ -584,7 +601,8 @@ int completeSecondaryHashFile(SHT_info *sht_info) {
 
                 printf("\n\nBlock %d Secondary Records :\n", blockIndex);
                 for (int i = 0; i < bucketMetadata.totalSecondaryRecords; ++i) {
-                    memcpy(&secondaryRecord, blockData + sizeof(SHT_block_info) + (i * sizeof(SecondaryRecord)), sizeof(SecondaryRecord));
+                    memcpy(&secondaryRecord, blockData + sizeof(SHT_block_info) + (i * sizeof(SecondaryRecord)),
+                           sizeof(SecondaryRecord));
                     printSecondaryRecord(secondaryRecord);
                 }
 

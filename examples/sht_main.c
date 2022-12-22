@@ -6,7 +6,7 @@
 #include "ht_table.h"
 #include "sht_table.h"
 
-#define RECORDS_NUM 5
+#define RECORDS_NUM 11
 #define FILE_NAME "data.db"
 #define INDEX_NAME "index.db"
 
@@ -16,8 +16,11 @@ int main() {
     srand(time(NULL));
     BF_Init(LRU);
 
-    HT_CreateFile(FILE_NAME, 6);
-    SHT_CreateSecondaryIndex(INDEX_NAME, 5, FILE_NAME);
+
+    int status;
+
+    HT_CreateFile(FILE_NAME, 3);
+    SHT_CreateSecondaryIndex(INDEX_NAME, 4, FILE_NAME);
 
     HT_info *info = HT_OpenFile(FILE_NAME);
     if (info == NULL) {
@@ -38,8 +41,10 @@ int main() {
 
     for (int id = 0; id < RECORDS_NUM; ++id) {
 
+
         record = randomRecord();
         record.id = rand() % 20;
+
 
         InsertPosition insertPosition = HT_InsertEntry(info, record);
         if (insertPosition.recordIndex == HT_ERROR || insertPosition.blockIndex == HT_ERROR) {
@@ -60,13 +65,14 @@ int main() {
         }
 
         printf("----------\n");
-        printf("Inserted Secondary Record with Bucket Index %d\n", hash(record.name) % index_info->totalSecondaryBuckets);
+        printf("Inserted Secondary Record with Bucket Index %d\n",
+               hash(record.name) % index_info->totalSecondaryBuckets);
         printSecondaryRecord(secondaryRecordFromRecord(record, insertPosition.blockIndex, insertPosition.recordIndex));
         printf("in Block %d\n", secondaryBlockIndex);
 
-
         printf("##########\n\n");
     }
+
 
     printf("Looking for name %s\n", searchName);
     int blocksRequested = SHT_SecondaryGetAllEntries(info, index_info, searchName);
@@ -78,15 +84,11 @@ int main() {
     printf("%d Block(s) requested for name %s\n", blocksRequested, searchName);
 
 
-    int status;
-
-
     status = completePrimaryHashFile(info);
     if (status == HT_ERROR) {
         BF_Close();
         exit(1);
     }
-
 
     status = completeSecondaryHashFile(index_info);
     if (status == SHT_ERROR) {
@@ -100,6 +102,7 @@ int main() {
         BF_Close();
         exit(1);
     }
+
 
     status = HT_CloseFile(info);
     if (status == HT_ERROR) {
