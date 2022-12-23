@@ -7,15 +7,6 @@
 #define RECORDS_NUM 4269
 #define FILE_NAME "data.db"
 
-#define CALL_OR_DIE(call)     \
-  {                           \
-    BF_ErrorCode code = call; \
-    if (code != BF_OK) {      \
-      BF_PrintError(code);    \
-      exit(code);             \
-    }                         \
-  }
-
 int main() {
 
     BF_Init(LRU);
