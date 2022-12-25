@@ -6,7 +6,7 @@
 #include "ht_table.h"
 #include "sht_table.h"
 
-#define RECORDS_NUM 10
+#define RECORDS_NUM 4296
 #define FILE_NAME "data.db"
 #define INDEX_NAME "index.db"
 
@@ -19,8 +19,13 @@ int main() {
 
     int status;
 
-    HT_CreateFile(FILE_NAME, 3);
-    SHT_CreateSecondaryIndex(INDEX_NAME, 4, FILE_NAME);
+    /* Κατά τη 2η + εκτέλεση του προγράμματος θα προκύψει το σφάλμα : BF Error: The file is already being used
+       Το παραπάνω οφείλεται στο οτι το αρχείο υπάρχει ηδη και έτσι θα αποτύχει η δημιουργία του, συνεπώς κατά τη 2η + εκτέλεση αγνοήστε το */
+    HT_CreateFile(FILE_NAME, 10);
+
+    /* Κατά τη 2η + εκτέλεση του προγράμματος θα προκύψει το σφάλμα : BF Error: The file is already being used
+       Το παραπάνω οφείλεται στο οτι το αρχείο υπάρχει ηδη και έτσι θα αποτύχει η δημιουργία του, συνεπώς κατά τη 2η + εκτέλεση αγνοήστε το */
+    SHT_CreateSecondaryIndex(INDEX_NAME, 10, FILE_NAME);
 
     HT_info *info = HT_OpenFile(FILE_NAME);
     if (info == NULL) {
@@ -41,10 +46,7 @@ int main() {
 
     for (int id = 0; id < RECORDS_NUM; ++id) {
 
-
         record = randomRecord();
-        record.id = rand() % 20;
-
 
         InsertPosition insertPosition = HT_InsertEntry(info, record);
         if (insertPosition.recordIndex == HT_ERROR || insertPosition.blockIndex == HT_ERROR) {
@@ -55,7 +57,7 @@ int main() {
         printf("##########\n");
         printf("Inserted Record with Bucket Index %d\n", record.id % info->totalBuckets);
         printRecord(record);
-        printf("in Block %d\n", insertPosition.blockIndex);
+        printf("in Block %d of Primary Hash File\n", insertPosition.blockIndex);
 
 
         int secondaryBlockIndex = SHT_SecondaryInsertEntry(index_info, record, insertPosition);
@@ -68,7 +70,7 @@ int main() {
         printf("Inserted Secondary Record with Bucket Index %d\n",
                hash(record.name) % index_info->totalSecondaryBuckets);
         printSecondaryRecord(secondaryRecordFromRecord(record, insertPosition.blockIndex, insertPosition.recordIndex));
-        printf("in Block %d\n", secondaryBlockIndex);
+        printf("in Block %d of Secondary Hash File\n", secondaryBlockIndex);
 
         printf("##########\n\n");
     }
@@ -84,12 +86,14 @@ int main() {
     printf("%d Block(s) requested for name %s\n", blocksRequested, searchName);
 
 
+    /* Προαιρετικά */
     status = completePrimaryHashFile(info);
     if (status == HT_ERROR) {
         BF_Close();
         exit(1);
     }
 
+    /* Προαιρετικά */
     status = completeSecondaryHashFile(index_info);
     if (status == SHT_ERROR) {
         BF_Close();

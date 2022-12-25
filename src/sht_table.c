@@ -49,7 +49,8 @@ int SHT_CreateSecondaryIndex(char *sfileName, int buckets, char *fileName) {
 
     char secondaryHashFileIdentifier = SECONDARY_HASH_FILE_IDENTIFIER;
 
-    /* Δημιουργία και αρχικοποίηση μιας δομής SHT_info που θα αντιγραφεί στο 1ο Block του Secondary Hash File */
+    /* Δημιουργία και αρχικοποίηση μιας δομής SHT_info που θα αντιγραφεί στο 1ο Block του Secondary Hash File
+     * Στον File Descriptor γίνεται ανάθεση της τιμής NONE αφού το Process ενδέχεται σε μελλοντικό άνοιγμα του αρχείου να αναθέσει κάποιο διαφορετικό File Descriptor */
     SHT_info headerMetadata;
     headerMetadata.maxSecondaryRecords = MAX_SECONDARY_RECORDS;
     headerMetadata.totalSecondaryBuckets = buckets;
@@ -129,6 +130,8 @@ SHT_info *SHT_OpenSecondaryIndex(char *indexName) {
     /* Αντιγραφή των μεταδεδομένων του 1ου Block στη δομή SHT_info */
     SHT_info *headerMetadata = (SHT_info *) malloc(sizeof(SHT_info));
     memcpy(headerMetadata, blockData + sizeof(char), sizeof(SHT_info));
+
+    /* Ρητή ανάθεση του File Descriptor που παρείχε το Process για το αρχείο */
     headerMetadata->fileDescriptor = fileDescriptor;
 
     /* Unpin του 1ου Block */
@@ -195,7 +198,7 @@ int SHT_CloseSecondaryIndex(SHT_info *shtInfo) {
     return SHT_OK;
 }
 
-
+/* DJB2 Hash Function */
 unsigned int hash(const char *field) {
 
     int character;
@@ -289,7 +292,7 @@ int SHT_SecondaryInsertEntry(SHT_info *sht_info, Record record, InsertPosition i
 
             /* Εφόσον θα πραγματοποιηθεί allocation ενός νέου Block λόγω overflow :
              *
-             * # Το επόμενο Block του τωρινού Block θα είναι ο αριθμός των Blocks του Hash File ΠΡΙΝ το allocation.
+             * # Το επόμενο Block του τωρινού Block θα είναι ο αριθμός των Blocks του Secondary Hash File ΠΡΙΝ το allocation.
              *   Aν το Secondary Hash File απαρτίζεται απο έστω 5 Blocks στη συνέχεια θα απαρτίζεται απο 6 Blocks και το index του allocated Block θα είναι το 5
              *
              * # Το προηγούμενο Block του allocated Block θα είναι το index του Block στο οποίο έγινε απόπειρα για την εισαγωγή του εκάστοτε Secondary Record
@@ -362,14 +365,6 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
 
     printf("Will look in Bucket %d for name %s\n", secondaryBucketIndex, name);
 
-//    printf("Hash Value : %d\n", hashValue);
-//    printf("Bucket index : %d\n", secondaryBucketIndex);
-//    printf("Block index : %d\n", secondaryBlockIndex);
-//    for (int i = 0; i < sht_info->totalSecondaryBuckets + 4; ++i) {
-//        printf("Bucket %d goes to Block %d\n", i, sht_info->bucketToBlock[i]);
-//    }
-
-
     BF_Block_Init(&primaryBlock);
     BF_Block_Init(&secondaryBlock);
 
@@ -383,7 +378,7 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
     while (keepLooking) {
 
 
-        /* Ανάκτηση του κατάλληλου Block στο πλαίσιο του Secondary Hash File*/
+        /* Ανάκτηση του κατάλληλου Block στο πλαίσιο του Secondary Hash File */
         VALUE_CALL_OR_DIE(BF_GetBlock(secondaryFileDescriptor, secondaryBlockIndex, secondaryBlock))
         blocksRequested += 1;
 
@@ -403,6 +398,8 @@ int SHT_SecondaryGetAllEntries(HT_info *ht_info, SHT_info *sht_info, char *name)
 
                 /* Ανάκτηση του κατάλληλου Block στο πλαίσιο του Primary Hash File που υποδεικνύεται απο το Block Index του Secondary Record */
                 VALUE_CALL_OR_DIE(BF_GetBlock(primaryFileDescriptor, secondaryRecord.blockIndex, primaryBlock))
+
+                /* Συνυπολογισμός των Blocks που έπρεπε να ανακτηθούν και απο το Primary Hash File */
                 blocksRequested += 1;
 
                 /* Ανάκτηση του καταλλήλου Record */
@@ -442,6 +439,7 @@ int secondaryHashStatistics(char *filename) {
         return SHT_ERROR;
 
     printf("Total Blocks of Secondary Hash File : %d\n", info->totalSecondaryBlocks);
+    printf("Total Secondary Records of Secondary Hash File : %d\n", info->totalSecondaryRecords);
 
     int bucketBlocks[info->totalSecondaryBuckets];
     int bucketRecords[info->totalSecondaryBuckets];
@@ -459,7 +457,8 @@ int secondaryHashStatistics(char *filename) {
         if (blockIndex == NONE) {
             bucketBlocks[bucketIndex] = 0;
             bucketRecords[bucketIndex] = 0;
-        } else {
+        }
+        else {
 
             int totalRecords;
             int totalBlocks;
@@ -556,7 +555,7 @@ int completeSecondaryHashFile(SHT_info *sht_info) {
     printf("##########\n");
     printf("Complete Secondary Hash File\n");
     printf("Max Secondary Records per Block : %d\n", maxRecords);
-    printf("Total Blocks of Hash File : %d\n", totalBlocks);
+    printf("Total Blocks of Secondary Hash File : %d\n", totalBlocks);
 
     BF_Block *block;
     char *blockData;
@@ -576,7 +575,8 @@ int completeSecondaryHashFile(SHT_info *sht_info) {
             printf("Bucket %d has 0 overflow Blocks\n", bucketIndex);
             printf("Bucket %d has 0 Secondary Records\n", bucketIndex);
             printf("##########\n\n");
-        } else {
+        }
+        else {
 
             bool keepLooking = true;
             bool printMetadata = true;
@@ -593,9 +593,9 @@ int completeSecondaryHashFile(SHT_info *sht_info) {
                 /* Εκτύπωση των μεταδεδομένων του τελευταίου μόνο Block του εκάστοτε Bucket */
                 if (printMetadata) {
                     printf("##########\n");
-                    printf("Bucket %d has %d Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar);
-                    printf("Bucket %d has %d overflow Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar - 1);
-                    printf("Bucket %d has %d Secondary Records\n", bucketIndex, bucketMetadata.bucketRecordsSoFar);
+                    printf("Bucket %d has %d Block(s)\n", bucketIndex, bucketMetadata.bucketBlocksSoFar);
+                    printf("Bucket %d has %d overflow Block(s)\n", bucketIndex, bucketMetadata.bucketBlocksSoFar - 1);
+                    printf("Bucket %d has %d Secondary Record(s)\n", bucketIndex, bucketMetadata.bucketRecordsSoFar);
                     printMetadata = false;
                 }
 

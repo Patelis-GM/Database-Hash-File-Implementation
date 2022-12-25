@@ -60,7 +60,8 @@ int HT_CreateFile(char *fileName, int buckets) {
 
     char hashFileIdentifier = HASH_FILE_IDENTIFIER;
 
-    /* Δημιουργία και αρχικοποίηση μιας δομής HT_info που θα αντιγραφεί στο 1ο Block του Primary Hash File */
+    /* Δημιουργία και αρχικοποίηση μιας δομής HT_info που θα αντιγραφεί στο 1ο Block του Primary Hash File
+     * Στον File Descriptor γίνεται ανάθεση της τιμής NONE αφού το Process ενδέχεται σε μελλοντικό άνοιγμα του αρχείου να αναθέσει κάποιο διαφορετικό File Descriptor */
     HT_info headerMetadata;
     headerMetadata.maxRecords = MAX_RECORDS;
     headerMetadata.totalBuckets = buckets;
@@ -118,7 +119,7 @@ HT_info *HT_OpenFile(char *fileName) {
     char hashFileIdentifier;
     memcpy(&hashFileIdentifier, blockData, sizeof(char));
 
-    /* Το πρώτο byte του Hash File πρέπει να έχει αξία ιση με HASH_FILE_IDENTIFIER */
+    /* Το πρώτο byte του Primary Hash File πρέπει να έχει αξία ιση με HASH_FILE_IDENTIFIER */
     if (hashFileIdentifier != HASH_FILE_IDENTIFIER) {
 
         printf("First byte of HEADER-BLOCK should be : %c\n", HASH_FILE_IDENTIFIER);
@@ -137,6 +138,8 @@ HT_info *HT_OpenFile(char *fileName) {
     /* Αντιγραφή των μεταδεδομένων του 1ου Block στη δομή HT_info */
     HT_info *headerMetadata = (HT_info *) malloc(sizeof(HT_info));
     memcpy(headerMetadata, blockData + sizeof(char), sizeof(HT_info));
+
+    /* Ρητή ανάθεση του File Descriptor που παρείχε το Process για το αρχείο */
     headerMetadata->fileDescriptor = fileDescriptor;
 
     /* Unpin του 1ου Block */
@@ -170,31 +173,31 @@ int HT_CloseFile(HT_info *ht_info) {
     BF_Block *block;
     BF_Block_Init(&block);
 
-    /* Ανάκτηση του 1ου Block του Hash File */
+    /* Ανάκτηση του 1ου Block του Primary Hash File */
     VALUE_CALL_OR_DIE(BF_GetBlock(fileDescriptor, HEADER_BLOCK, block))
 
     char *blockData = BF_Block_GetData(block);
 
-    /* Ανάκτηση των μεταδεδομένων του 1ου Block του Hash File */
+    /* Ανάκτηση των μεταδεδομένων του 1ου Block του Primary Hash File */
     HT_info headerMetadata;
     memcpy(&headerMetadata, blockData + sizeof(char), sizeof(HT_info));
 
-    /* Έλεγχος για τον αν η δομή HT_info* ht_info διαφέρει με τα μεταδεδομένα του 1ου Block του Hash file */
+    /* Έλεγχος για τον αν η δομή HT_info* ht_info διαφέρει με τα μεταδεδομένα του 1ου Block του Primary Hash file */
     if (HT_areDifferent(ht_info, &headerMetadata)) {
 
-        /* Εφόσον οι δυο δομές διαφέρουν μεταξύ τους ενημέρωση των μεταδεδομένων του 1ου Block του Hash file */
+        /* Εφόσον οι δυο δομές διαφέρουν μεταξύ τους ενημέρωση των μεταδεδομένων του 1ου Block του Primary Hash file */
         memcpy(blockData + sizeof(char), ht_info, sizeof(HT_info));
 
         BF_Block_SetDirty(block);
     }
 
-    /* Unpin του 1ου Block του Hash File */
+    /* Unpin του 1ου Block του Primary Hash File */
     VALUE_CALL_OR_DIE(BF_UnpinBlock(block))
 
     /* Αποδέσμευση μνήμης εφόσον η δομή HT_info* ht_info δεσμεύθηκε δυναμικά */
     free(ht_info);
 
-    /* Κλείσιμο του Hash File */
+    /* Κλείσιμο του Primary Hash File */
     VALUE_CALL_OR_DIE(BF_CloseFile(fileDescriptor))
 
     /* Αποδέσμευση του BF_Block */
@@ -219,7 +222,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
     HT_block_info bucketMetadata;
     BF_Block_Init(&block);
 
-    /* Εφόσον το allocation των Buckets του Hash File γίνεται on demand ενδεχομένως να μην έχει γίνει Block allocation για το εκάστοτε Bucket Index */
+    /* Εφόσον το allocation των Buckets του Primary Hash File γίνεται on demand ενδεχομένως να μην έχει γίνει Block allocation για το εκάστοτε Bucket Index */
     if (blockIndex == NONE) {
 
         /* Μεταδεδομένα του Block που πρόκειται να γίνει allocate και θα αντιγραφούν σε αυτό */
@@ -244,7 +247,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
         /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info για το Block που αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
         ht_info->bucketToBlock[bucketIndex] = ht_info->totalBlocks;
 
-        /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
+        /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Primary Hash File */
         ht_info->totalBlocks += 1;
 
         blockIndex = ht_info->bucketToBlock[bucketIndex];
@@ -252,7 +255,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
         recordIndex = 0;
     }
 
-        /* Το allocation των Buckets του Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
+        /* Το allocation των Buckets του Primary Hash File γίνεται on demand αλλά εν προκειμένω έχει ήδη γίνει Block allocation για το εκάστοτε Bucket Index */
     else {
 
 
@@ -288,8 +291,8 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
 
             /* Εφόσον θα πραγματοποιηθεί allocation ενός νέου Block λόγω overflow :
              *
-             * # Το επόμενο Block του τωρινού Block θα είναι ο αριθμός των Blocks του Hash File ΠΡΙΝ το allocation.
-             *   Aν το Hash File απαρτίζεται απο έστω 5 Blocks στη συνέχεια θα απαρτίζεται απο 6 Blocks και το index του allocated Block θα είναι το 5
+             * # Το επόμενο Block του τωρινού Block θα είναι ο αριθμός των Blocks του Primary Hash File ΠΡΙΝ το allocation.
+             *   Aν το Primary Hash File απαρτίζεται απο έστω 5 Blocks στη συνέχεια θα απαρτίζεται απο 6 Blocks και το index του allocated Block θα είναι το 5
              *
              * # Το προηγούμενο Block του allocated Block θα είναι το index του Block στο οποίο έγινε απόπειρα για την εισαγωγή του εκάστοτε Record
              */
@@ -324,7 +327,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
             BF_Block_SetDirty(block);
             INSERT_CALL_OR_DIE(BF_UnpinBlock(block))
 
-            /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Hash File */
+            /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Blocks που απαρτίζουν πλέον το Primary Hash File */
             ht_info->totalBlocks += 1;
 
             /* Ενημέρωση του πίνακα κατακερματισμού της δομής HT_info οτι το allocated Block αντιστοιχεί πλέον στο εκάστοτε Bucket Index */
@@ -338,7 +341,7 @@ InsertPosition HT_InsertEntry(HT_info *ht_info, Record record) {
 
     }
 
-    /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Records του Hash File */
+    /* Ενημέρωση της δομής HT_info για τον συνολικό αριθμό των Records του Primary Hash File */
     ht_info->totalRecords += 1;
 
     BF_Block_Destroy(&block);
@@ -370,7 +373,7 @@ int HT_GetAllEntries(HT_info *ht_info, int value) {
     Record record;
     BF_Block_Init(&block);
 
-    /* Εφόσον το allocation των Buckets του Hash File γίνεται on demand γνωρίζουμε εκ των προτέρων οτι το εκάστοτε Record δε βρίσκεται στο Hash - File */
+    /* Εφόσον το allocation των Buckets του Primary Hash File γίνεται on demand γνωρίζουμε εκ των προτέρων οτι το εκάστοτε Record δε βρίσκεται στο Primary Hash File */
     if (blockIndex == NONE)
         keepLooking = false;
 
@@ -418,6 +421,7 @@ int primaryHashStatistics(char *filename) {
     if (info == NULL)
         return HT_ERROR;
 
+    printf("Total Records of Primary Hash File : %d\n", info->totalRecords);
     printf("Total Blocks of Primary Hash File : %d\n", info->totalBlocks);
 
     int bucketBlocks[info->totalBuckets];
@@ -432,7 +436,7 @@ int primaryHashStatistics(char *filename) {
 
         int blockIndex = info->bucketToBlock[bucketIndex];
 
-        /* Το allocation των Buckets του Hash File γίνεται on demand */
+        /* Το allocation των Buckets του Primary Hash File γίνεται on demand */
         if (blockIndex == NONE) {
             bucketBlocks[bucketIndex] = 0;
             bucketRecords[bucketIndex] = 0;
@@ -531,9 +535,10 @@ int completePrimaryHashFile(HT_info *ht_info) {
     int totalBlocks = ht_info->totalBlocks;
 
     printf("##########\n");
-    printf("Complete Hash File\n");
+    printf("Complete Primary Hash File\n");
     printf("Max Records per Block : %d\n", maxRecords);
-    printf("Total Blocks of Hash File : %d\n", totalBlocks);
+    printf("Total Blocks of Primary Hash File : %d\n", totalBlocks);
+    printf("Total Records of Primary Hash File : %d\n", ht_info->totalRecords);
 
     BF_Block *block;
     char *blockData;
@@ -546,7 +551,7 @@ int completePrimaryHashFile(HT_info *ht_info) {
 
         int blockIndex = ht_info->bucketToBlock[bucketIndex];
 
-        /* Το allocation των Buckets του Hash File γίνεται on demand */
+        /* Το allocation των Buckets του Primary Hash File γίνεται on demand */
         if (blockIndex == NONE) {
             printf("##########\n");
             printf("Bucket %d has 0 Blocks\n", bucketIndex);
@@ -572,9 +577,9 @@ int completePrimaryHashFile(HT_info *ht_info) {
                 /* Εκτύπωση των μεταδεδομένων του τελευταίου μόνο Block του εκάστοτε Bucket */
                 if (printMetadata) {
                     printf("##########\n");
-                    printf("Bucket %d has %d Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar);
-                    printf("Bucket %d has %d overflow Blocks\n", bucketIndex, bucketMetadata.bucketBlocksSoFar - 1);
-                    printf("Bucket %d has %d Records\n", bucketIndex, bucketMetadata.bucketRecordsSoFar);
+                    printf("Bucket %d has %d Block(s)\n", bucketIndex, bucketMetadata.bucketBlocksSoFar);
+                    printf("Bucket %d has %d overflow Block(s)\n", bucketIndex, bucketMetadata.bucketBlocksSoFar - 1);
+                    printf("Bucket %d has %d Record(s)\n", bucketIndex, bucketMetadata.bucketRecordsSoFar);
                     printMetadata = false;
                 }
 

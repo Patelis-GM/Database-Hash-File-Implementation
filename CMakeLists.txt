@@ -6,7 +6,6 @@ set(CMAKE_C_STANDARD 11)
 include_directories(include)
 
 add_executable(Exercises_DB
-        examples/ht_main.c
         examples/sht_main.c
         include/bf.h
         include/sht_table.h

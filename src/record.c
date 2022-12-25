@@ -62,6 +62,7 @@ Record randomRecord() {
     return record;
 }
 
+/* Βοηθητική συνάρτηση για τη δημιουργία Secondary Record απο Record */
 SecondaryRecord secondaryRecordFromRecord(Record record, int blockIndex, int recordIndex) {
     SecondaryRecord secondaryRecord;
     strcpy(secondaryRecord.name, record.name);
