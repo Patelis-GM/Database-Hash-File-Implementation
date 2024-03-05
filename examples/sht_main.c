@@ -6,6 +6,7 @@
 #include "ht_table.h"
 #include "sht_table.h"
 
+
 #define RECORDS_NUM 4296
 #define FILE_NAME "data.db"
 #define INDEX_NAME "index.db"
