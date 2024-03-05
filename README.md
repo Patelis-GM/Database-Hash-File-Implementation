@@ -1,17 +1,17 @@
 # Database Hash File Implementation
 
-# Introduction:
-This project was developed as part of the university course "Implementation of Database Systems."
- The aim of this project is to implement two files related to a database: a primary hash file and a secondary hash file. These files serve as index structures for database records, facilitating efficient retrieval based on different keys.
+# Introduction
+This project was developed as part of the course "Implementation of Database Systems" at the Department of Informatics and Telecommunications of the National and Kapodistrian University of Athens.
+The aim of this project is to implement two files related to a database: a primary hash file and a secondary hash file. These files serve as index structures for database records, facilitating efficient retrieval based on different keys.
 
-# Development Environment:
-- Windows.
-- Linux.
+# Development Platforms
+- Windows
+- Linux
 
-# Development Platform:
-- CLion IDE.
+# Development Enviroment
+- CLion IDE
 
-# Compilation:
+# Compilation
 To compile the project, execute the following commands:
 
 - make sht: Creates the ./build/sht_main executable for testing primary and secondary hash files functionality.
